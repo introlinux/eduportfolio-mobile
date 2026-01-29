@@ -2,8 +2,12 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
+import 'package:eduportfolio/core/providers/core_providers.dart';
+import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
 import 'package:eduportfolio/features/capture/presentation/providers/capture_providers.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -34,6 +38,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   int _capturedCount = 0;
   bool _isCapturing = false;
   String? _previewImagePath;
+  String? _recognizedStudentName;
+  int? _recognizedStudentId;
 
   @override
   void initState() {
@@ -110,7 +116,10 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       // Take picture
       final image = await _cameraController!.takePicture();
 
-      // Show preview for 1 second with option to cancel
+      // Perform face recognition
+      await _performFaceRecognition(image.path);
+
+      // Show preview with recognition result
       setState(() {
         _previewImagePath = image.path;
       });
@@ -120,7 +129,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
 
       // If preview still showing (not cancelled), save
       if (mounted && _previewImagePath != null) {
-        await _saveEvidence(image.path);
+        await _saveEvidence(image.path, studentId: _recognizedStudentId);
       }
     } catch (e) {
       if (mounted) {
@@ -136,29 +145,81 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         setState(() {
           _isCapturing = false;
           _previewImagePath = null;
+          _recognizedStudentName = null;
+          _recognizedStudentId = null;
         });
       }
     }
   }
 
-  Future<void> _saveEvidence(String imagePath) async {
+  Future<void> _performFaceRecognition(String imagePath) async {
+    try {
+      // Get face recognition service
+      final faceRecognitionService = ref.read(faceRecognitionServiceProvider);
+
+      // Get active course to filter students
+      final getActiveCourseUseCase = ref.read(getActiveCourseUseCaseProvider);
+      final activeCourse = await getActiveCourseUseCase();
+
+      if (activeCourse == null) {
+        // No active course, skip recognition
+        return;
+      }
+
+      // Get students with face data from active course
+      final studentRepository = ref.read(studentRepositoryProvider);
+      final allStudents = await studentRepository.getAllStudents();
+      final studentsWithFaces = allStudents
+          .where((s) => s.courseId == activeCourse.id && s.hasFaceData)
+          .toList();
+
+      if (studentsWithFaces.isEmpty) {
+        // No students with face data
+        return;
+      }
+
+      // Recognize student in image
+      final result = await faceRecognitionService.recognizeStudent(
+        File(imagePath),
+        studentsWithFaces,
+      );
+
+      if (result.student != null) {
+        setState(() {
+          _recognizedStudentName = result.student!.name;
+          _recognizedStudentId = result.student!.id;
+        });
+      }
+    } catch (e) {
+      // Recognition failed, but don't block capture
+      // Just log and continue without recognition
+      debugPrint('Face recognition error: $e');
+    }
+  }
+
+  Future<void> _saveEvidence(String imagePath, {int? studentId}) async {
     try {
       final saveUseCase = ref.read(saveEvidenceUseCaseProvider);
 
       await saveUseCase(
         tempImagePath: imagePath,
         subjectId: widget.subjectId,
+        studentId: studentId,
       );
 
       if (mounted) {
         setState(() => _capturedCount++);
 
-        // Visual feedback
+        // Visual feedback with recognition info
+        final message = studentId != null && _recognizedStudentName != null
+            ? '✓ Evidencia guardada - $_recognizedStudentName'
+            : '✓ Evidencia ${_capturedCount} guardada';
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ Evidencia ${_capturedCount} guardada'),
+            content: Text(message),
             backgroundColor: Colors.green,
-            duration: const Duration(milliseconds: 800),
+            duration: const Duration(milliseconds: 1500),
           ),
         );
       }
@@ -186,6 +247,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       setState(() {
         _previewImagePath = null;
         _isCapturing = false;
+        _recognizedStudentName = null;
+        _recognizedStudentId = null;
       });
     }
   }
@@ -365,17 +428,65 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   }
 
   Widget _buildPreview(ThemeData theme) {
+    final isRecognized = _recognizedStudentName != null;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Image preview
+          // Image preview with colored border
           Center(
-            child: Image.file(
-              File(_previewImagePath!),
-              fit: BoxFit.contain,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: isRecognized ? Colors.green : Colors.orange,
+                  width: 4,
+                ),
+              ),
+              child: Image.file(
+                File(_previewImagePath!),
+                fit: BoxFit.contain,
+              ),
             ),
           ),
+
+          // Recognition result banner
+          if (isRecognized)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 80),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.face,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _recognizedStudentName!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // Cancel button overlay
           SafeArea(
@@ -401,18 +512,21 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           ),
 
           // Auto-save message
-          const SafeArea(
+          SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Guardando automáticamente...',
-                  style: TextStyle(
+                  isRecognized
+                      ? 'Guardando y asignando a $_recognizedStudentName...'
+                      : 'Guardando automáticamente...',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),

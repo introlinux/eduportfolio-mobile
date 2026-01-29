@@ -181,44 +181,89 @@ class StudentDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Actions card
-                if (!student.hasFaceData)
-                  Card(
-                    color: theme.colorScheme.tertiaryContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.lightbulb_outline,
-                                color: theme.colorScheme.onTertiaryContainer,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Próximamente',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onTertiaryContainer,
-                                  ),
+                // Face recognition actions
+                Card(
+                  color: student.hasFaceData
+                      ? theme.colorScheme.surfaceContainerHighest
+                      : theme.colorScheme.tertiaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              student.hasFaceData
+                                  ? Icons.face
+                                  : Icons.photo_camera,
+                              color: student.hasFaceData
+                                  ? theme.colorScheme.onSurfaceVariant
+                                  : theme.colorScheme.onTertiaryContainer,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                student.hasFaceData
+                                    ? 'Reconocimiento Facial'
+                                    : 'Habilitar Reconocimiento',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: student.hasFaceData
+                                      ? theme.colorScheme.onSurfaceVariant
+                                      : theme.colorScheme.onTertiaryContainer,
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Podrás capturar la foto del estudiante para habilitar el reconocimiento facial automático.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onTertiaryContainer,
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          student.hasFaceData
+                              ? 'El estudiante está registrado para reconocimiento automático. Puedes recapturar las fotos si es necesario.'
+                              : 'Captura 5 fotos del estudiante para habilitar el reconocimiento facial automático durante la captura de evidencias.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: student.hasFaceData
+                                ? theme.colorScheme.onSurfaceVariant
+                                : theme.colorScheme.onTertiaryContainer,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: () async {
+                            final result = await Navigator.of(context).pushNamed(
+                              '/face-training',
+                              arguments: {'student': student},
+                            );
+
+                            // Refresh student data if training completed
+                            if (result == true) {
+                              ref.invalidate(studentByIdProvider(studentId));
+                            }
+                          },
+                          icon: Icon(
+                            student.hasFaceData
+                                ? Icons.refresh
+                                : Icons.camera_alt,
+                          ),
+                          label: Text(
+                            student.hasFaceData
+                                ? 'Recapturar fotos'
+                                : 'Capturar fotos de entrenamiento',
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: student.hasFaceData
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.tertiary,
+                            foregroundColor: student.hasFaceData
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onTertiary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
               ],
             ),
           );

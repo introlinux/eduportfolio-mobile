@@ -1,3 +1,4 @@
+import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/quick_capture_screen.dart';
@@ -6,6 +7,7 @@ import 'package:eduportfolio/features/courses/presentation/screens/courses_scree
 import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
+import 'package:eduportfolio/features/students/presentation/screens/face_training_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_detail_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_form_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/students_screen.dart';
@@ -24,6 +26,7 @@ class AppRoutes {
   static const String students = '/students';
   static const String studentForm = '/student-form';
   static const String studentDetail = '/student-detail';
+  static const String faceTraining = '/face-training';
   static const String courses = '/courses';
   static const String courseForm = '/course-form';
   static const String config = '/config';
@@ -132,6 +135,22 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => StudentDetailScreen(
             studentId: studentId,
+          ),
+          settings: settings,
+        );
+
+      case faceTraining:
+        // Extract required student for training
+        final args = settings.arguments as Map<String, dynamic>?;
+        final student = args?['student'] as Student?;
+
+        if (student == null) {
+          return _errorRoute(settings);
+        }
+
+        return MaterialPageRoute<bool>(
+          builder: (_) => FaceTrainingScreen(
+            student: student,
           ),
           settings: settings,
         );
