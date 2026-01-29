@@ -184,7 +184,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         studentsWithFaces,
       );
 
-      if (result.student != null) {
+      if (result != null && result.student != null) {
         setState(() {
           _recognizedStudentName = result.student!.name;
           _recognizedStudentId = result.student!.id;
