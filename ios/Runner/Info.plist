@@ -45,5 +45,20 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Permissions for Eduportfolio -->
+	<key>NSCameraUsageDescription</key>
+	<string>Necesario para capturar evidencias fotográficas de trabajos escolares</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Necesario para grabar audios de estudiantes y vídeos con sonido</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Necesario para guardar evidencias en la galería</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Necesario para guardar fotos y vídeos capturados</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Necesario para sincronizar datos con otros dispositivos mediante Bluetooth</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Necesario para sincronizar datos con otros dispositivos mediante Bluetooth</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Necesario para sincronizar datos en red local</string>
 </dict>
 </plist>
