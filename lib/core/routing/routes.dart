@@ -1,6 +1,8 @@
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/quick_capture_screen.dart';
+import 'package:eduportfolio/features/courses/presentation/screens/course_form_screen.dart';
+import 'package:eduportfolio/features/courses/presentation/screens/courses_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
@@ -22,6 +24,8 @@ class AppRoutes {
   static const String students = '/students';
   static const String studentForm = '/student-form';
   static const String studentDetail = '/student-detail';
+  static const String courses = '/courses';
+  static const String courseForm = '/course-form';
   static const String config = '/config';
   static const String review = '/review';
 
@@ -128,6 +132,24 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => StudentDetailScreen(
             studentId: studentId,
+          ),
+          settings: settings,
+        );
+
+      case courses:
+        return MaterialPageRoute<void>(
+          builder: (_) => const CoursesScreen(),
+          settings: settings,
+        );
+
+      case courseForm:
+        // Extract optional course ID for editing
+        final args = settings.arguments as Map<String, dynamic>?;
+        final courseId = args?['courseId'] as int?;
+
+        return MaterialPageRoute<void>(
+          builder: (_) => CourseFormScreen(
+            courseId: courseId,
           ),
           settings: settings,
         );

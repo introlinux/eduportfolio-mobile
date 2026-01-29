@@ -1,3 +1,4 @@
+import 'package:eduportfolio/features/courses/presentation/widgets/active_course_indicator.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/home/presentation/widgets/pending_badge.dart';
 import 'package:eduportfolio/features/home/presentation/widgets/storage_indicator.dart';
@@ -54,13 +55,26 @@ class HomeScreen extends ConsumerWidget {
             },
             tooltip: 'Ver galería',
           ),
+          // Settings button
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/courses');
+            },
+            tooltip: 'Gestión de cursos',
+          ),
         ],
       ),
       body: Column(
         children: [
+          // Active course indicator
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: ActiveCourseIndicator(),
+          ),
           // Storage indicator
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: storageInfoAsync.when(
               data: (info) => Align(
                 alignment: Alignment.centerLeft,
