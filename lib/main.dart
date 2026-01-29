@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/home/presentation/screens/home_screen.dart';
+import 'core/routing/routes.dart';
 
 void main() {
   runApp(
@@ -19,6 +19,8 @@ class EduportfolioApp extends StatelessWidget {
     return MaterialApp(
       title: 'Eduportfolio',
       debugShowCheckedModeBanner: false,
+      onGenerateRoute: AppRoutes.onGenerateRoute,
+      initialRoute: AppRoutes.home,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -39,7 +41,6 @@ class EduportfolioApp extends StatelessWidget {
           elevation: 4,
         ),
       ),
-      home: const HomeScreen(),
     );
   }
 }
