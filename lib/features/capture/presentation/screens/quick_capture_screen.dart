@@ -32,6 +32,8 @@ class QuickCaptureScreen extends ConsumerStatefulWidget {
 
 class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   CameraController? _cameraController;
+  List<CameraDescription> _availableCameras = [];
+  int _currentCameraIndex = 0;
   bool _isInitializing = true;
   bool _hasPermission = false;
   String? _errorMessage;
@@ -69,9 +71,9 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       setState(() => _hasPermission = true);
 
       // Get available cameras
-      final cameras = await availableCameras();
+      _availableCameras = await availableCameras();
 
-      if (cameras.isEmpty) {
+      if (_availableCameras.isEmpty) {
         setState(() {
           _isInitializing = false;
           _errorMessage = 'No se encontró ninguna cámara';
@@ -79,8 +81,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         return;
       }
 
-      // Use back camera (index 0) by default
-      final camera = cameras.first;
+      // Use current camera index (back camera by default)
+      final camera = _availableCameras[_currentCameraIndex];
 
       // Initialize camera controller
       _cameraController = CameraController(
@@ -253,6 +255,21 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     }
   }
 
+  Future<void> _switchCamera() async {
+    if (_availableCameras.length < 2 || _isCapturing) {
+      return; // No multiple cameras or currently capturing
+    }
+
+    // Switch to next camera (cycle through available cameras)
+    _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
+
+    // Dispose current controller
+    await _cameraController?.dispose();
+
+    // Reinitialize with new camera
+    await _initializeCamera();
+  }
+
   @override
   void dispose() {
     _cameraController?.dispose();
@@ -360,6 +377,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                  ),
+                // Camera switch button (only show if multiple cameras available)
+                if (_availableCameras.length > 1)
+                  IconButton(
+                    icon: const Icon(Icons.flip_camera_android, color: Colors.white),
+                    onPressed: _switchCamera,
+                    tooltip: 'Cambiar cámara',
                   ),
               ],
             ),

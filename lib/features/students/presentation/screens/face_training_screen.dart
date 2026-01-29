@@ -28,6 +28,8 @@ class FaceTrainingScreen extends ConsumerStatefulWidget {
 
 class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
   CameraController? _cameraController;
+  List<CameraDescription> _availableCameras = [];
+  int _currentCameraIndex = 0;
   bool _isInitializing = true;
   bool _hasPermission = false;
   String? _errorMessage;
@@ -65,10 +67,10 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
       setState(() => _hasPermission = true);
 
-      // Get available cameras (use front camera for face training)
-      final cameras = await availableCameras();
+      // Get available cameras
+      _availableCameras = await availableCameras();
 
-      if (cameras.isEmpty) {
+      if (_availableCameras.isEmpty) {
         setState(() {
           _isInitializing = false;
           _errorMessage = 'No se encontró ninguna cámara';
@@ -76,11 +78,18 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         return;
       }
 
-      // Prefer front camera for face training
-      final camera = cameras.firstWhere(
-        (cam) => cam.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
+      // On first initialization, prefer front camera for face training
+      if (_currentCameraIndex == 0) {
+        final frontCameraIndex = _availableCameras.indexWhere(
+          (cam) => cam.lensDirection == CameraLensDirection.front,
+        );
+        if (frontCameraIndex != -1) {
+          _currentCameraIndex = frontCameraIndex;
+        }
+      }
+
+      // Use current camera index
+      final camera = _availableCameras[_currentCameraIndex];
 
       // Initialize camera controller
       _cameraController = CameraController(
@@ -233,6 +242,21 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
     });
   }
 
+  Future<void> _switchCamera() async {
+    if (_availableCameras.length < 2 || _isCapturing || _isProcessing) {
+      return; // No multiple cameras or currently busy
+    }
+
+    // Switch to next camera (cycle through available cameras)
+    _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
+
+    // Dispose current controller
+    await _cameraController?.dispose();
+
+    // Reinitialize with new camera
+    await _initializeCamera();
+  }
+
   @override
   void dispose() {
     _cameraController?.dispose();
@@ -316,12 +340,27 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
             ),
             child: Column(
               children: [
-                Text(
-                  widget.student.name,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.student.name,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    // Camera switch button (only show if multiple cameras available)
+                    if (_availableCameras.length > 1)
+                      IconButton(
+                        icon: const Icon(Icons.flip_camera_android, color: Colors.white),
+                        onPressed: _switchCamera,
+                        tooltip: 'Cambiar cámara',
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 // Progress bar

@@ -158,14 +158,6 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // Navigate to capture screen without preselected subject
-          Navigator.of(context).pushNamed('/capture');
-        },
-        icon: const Icon(Icons.camera_alt),
-        label: const Text('Capturar'),
-      ),
     );
   }
 }
