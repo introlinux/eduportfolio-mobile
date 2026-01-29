@@ -476,10 +476,14 @@ La aplicación soporta los siguientes idiomas:
 - [x] Vista de galería (Gallery & EvidenceDetail)
 - [x] Gestión de estudiantes (Students)
 - [x] Gestión de cursos escolares (Courses)
+- [x] Vista de revisión manual (Review)
+  - [x] Selección múltiple con checkboxes
+  - [x] Asignación por lote
+  - [x] Eliminación por lote con confirmación
+  - [x] Preview a pantalla completa con navegación
 - [x] Tests unitarios (Core, UseCases, Services)
 - [x] Documentación técnica
 - [ ] Vista de configuración completa
-- [ ] Vista de revisión manual (Review)
 - [ ] Tests de widgets e integración
 - [ ] Integración de modelo TFLite real
 - [ ] Pruebas en dispositivos reales
