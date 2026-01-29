@@ -1,4 +1,4 @@
-import '../entities/student.dart';
+import 'package:eduportfolio/core/domain/entities/student.dart';
 
 /// Repository interface for students
 ///

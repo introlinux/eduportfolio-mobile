@@ -16,7 +16,6 @@ void main() {
       thumbnailPath: '/path/to/THUMB_20250129_143025_MATEMATICAS.jpg',
       fileSize: 2048000,
       captureDate: testCaptureDate,
-      isReviewed: true,
       notes: 'Test note',
       createdAt: testCreatedAt,
     );
@@ -74,7 +73,6 @@ void main() {
     test('should handle unassigned evidence (null studentId)', () {
       final unassignedEvidence = Evidence(
         id: 2,
-        studentId: null,
         subjectId: 3,
         type: EvidenceType.image,
         filePath: '/path/to/unassigned.jpg',

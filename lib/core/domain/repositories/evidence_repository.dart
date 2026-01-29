@@ -1,4 +1,4 @@
-import '../entities/evidence.dart';
+import 'package:eduportfolio/core/domain/entities/evidence.dart';
 
 /// Repository interface for evidences
 ///

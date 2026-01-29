@@ -1,16 +1,13 @@
-import '../../domain/entities/course.dart';
+import 'package:eduportfolio/core/domain/entities/course.dart';
 
 /// Course model for data layer
 ///
 /// Extends Course entity with database serialization.
 class CourseModel extends Course {
   const CourseModel({
-    super.id,
-    required super.name,
-    required super.startDate,
+    required super.name, required super.startDate, required super.createdAt, super.id,
     super.endDate,
     super.isActive,
-    required super.createdAt,
   });
 
   /// Create model from entity

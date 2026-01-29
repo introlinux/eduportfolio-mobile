@@ -1,8 +1,8 @@
-import '../../domain/entities/student.dart';
-import '../../domain/repositories/student_repository.dart';
-import '../../errors/exceptions.dart';
-import '../datasources/student_local_datasource.dart';
-import '../models/student_model.dart';
+import 'package:eduportfolio/core/data/datasources/student_local_datasource.dart';
+import 'package:eduportfolio/core/data/models/student_model.dart';
+import 'package:eduportfolio/core/domain/entities/student.dart';
+import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
+import 'package:eduportfolio/core/errors/exceptions.dart';
 
 /// Implementation of StudentRepository
 ///
@@ -88,7 +88,7 @@ class StudentRepositoryImpl implements StudentRepository {
   Future<void> updateStudent(Student student) async {
     try {
       if (student.id == null) {
-        throw InvalidDataException('Student ID cannot be null for update');
+        throw const InvalidDataException('Student ID cannot be null for update');
       }
       final model = StudentModel.fromEntity(student);
       await _localDataSource.updateStudent(model);

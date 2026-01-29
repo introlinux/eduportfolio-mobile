@@ -1,8 +1,7 @@
+import 'package:eduportfolio/core/constants/app_constants.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-
-import '../constants/app_constants.dart';
-import '../utils/logger.dart';
 
 /// Database helper singleton for managing SQLite database
 ///
@@ -29,7 +28,7 @@ class DatabaseHelper {
 
     Logger.info('Initializing database at: $path');
 
-    return await openDatabase(
+    return openDatabase(
       path,
       version: AppConstants.databaseVersion,
       onCreate: _onCreate,

@@ -13,12 +13,8 @@ class Student {
   final DateTime updatedAt;
 
   const Student({
-    this.id,
-    required this.courseId,
-    required this.name,
+    required this.courseId, required this.name, required this.createdAt, required this.updatedAt, this.id,
     this.faceEmbeddings,
-    required this.createdAt,
-    required this.updatedAt,
   });
 
   /// Create a copy with updated fields

@@ -11,12 +11,10 @@ class Subject {
   final DateTime createdAt;
 
   const Subject({
-    this.id,
-    required this.name,
+    required this.name, required this.createdAt, this.id,
     this.color,
     this.icon,
     this.isDefault = false,
-    required this.createdAt,
   });
 
   /// Create a copy with updated fields

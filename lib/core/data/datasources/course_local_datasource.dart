@@ -1,7 +1,6 @@
+import 'package:eduportfolio/core/data/models/course_model.dart';
+import 'package:eduportfolio/core/database/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
-
-import '../../database/database_helper.dart';
-import '../models/course_model.dart';
 
 /// Local data source for courses
 ///
@@ -64,7 +63,7 @@ class CourseLocalDataSource {
       );
     }
 
-    return await db.insert(
+    return db.insert(
       'courses',
       course.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -85,7 +84,7 @@ class CourseLocalDataSource {
       );
     }
 
-    return await db.update(
+    return db.update(
       'courses',
       course.toMap(),
       where: 'id = ?',
@@ -96,7 +95,7 @@ class CourseLocalDataSource {
   /// Delete course
   Future<int> deleteCourse(int id) async {
     final db = await _databaseHelper.database;
-    return await db.delete(
+    return db.delete(
       'courses',
       where: 'id = ?',
       whereArgs: [id],
@@ -106,7 +105,7 @@ class CourseLocalDataSource {
   /// Archive course (set end_date and deactivate)
   Future<int> archiveCourse(int id, DateTime endDate) async {
     final db = await _databaseHelper.database;
-    return await db.update(
+    return db.update(
       'courses',
       {
         'end_date': endDate.toIso8601String(),

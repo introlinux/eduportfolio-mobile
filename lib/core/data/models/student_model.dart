@@ -1,18 +1,14 @@
 import 'dart:typed_data';
 
-import '../../domain/entities/student.dart';
+import 'package:eduportfolio/core/domain/entities/student.dart';
 
 /// Student model for data layer
 ///
 /// Extends Student entity with database serialization.
 class StudentModel extends Student {
   const StudentModel({
-    super.id,
-    required super.courseId,
-    required super.name,
+    required super.courseId, required super.name, required super.createdAt, required super.updatedAt, super.id,
     super.faceEmbeddings,
-    required super.createdAt,
-    required super.updatedAt,
   });
 
   /// Create model from entity

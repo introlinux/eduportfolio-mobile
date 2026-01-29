@@ -1,7 +1,6 @@
+import 'package:eduportfolio/core/data/models/subject_model.dart';
+import 'package:eduportfolio/core/database/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
-
-import '../../database/database_helper.dart';
-import '../models/subject_model.dart';
 
 /// Local data source for subjects
 ///
@@ -66,7 +65,7 @@ class SubjectLocalDataSource {
   /// Insert subject
   Future<int> insertSubject(SubjectModel subject) async {
     final db = await _databaseHelper.database;
-    return await db.insert(
+    return db.insert(
       'subjects',
       subject.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -76,7 +75,7 @@ class SubjectLocalDataSource {
   /// Update subject
   Future<int> updateSubject(SubjectModel subject) async {
     final db = await _databaseHelper.database;
-    return await db.update(
+    return db.update(
       'subjects',
       subject.toMap(),
       where: 'id = ?',
@@ -87,7 +86,7 @@ class SubjectLocalDataSource {
   /// Delete subject
   Future<int> deleteSubject(int id) async {
     final db = await _databaseHelper.database;
-    return await db.delete(
+    return db.delete(
       'subjects',
       where: 'id = ?',
       whereArgs: [id],

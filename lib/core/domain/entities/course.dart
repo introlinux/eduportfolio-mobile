@@ -11,12 +11,9 @@ class Course {
   final DateTime createdAt;
 
   const Course({
-    this.id,
-    required this.name,
-    required this.startDate,
+    required this.name, required this.startDate, required this.createdAt, this.id,
     this.endDate,
     this.isActive = true,
-    required this.createdAt,
   });
 
   /// Create a copy with updated fields

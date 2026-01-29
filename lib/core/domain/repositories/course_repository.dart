@@ -1,4 +1,4 @@
-import '../entities/course.dart';
+import 'package:eduportfolio/core/domain/entities/course.dart';
 
 /// Repository interface for courses
 ///

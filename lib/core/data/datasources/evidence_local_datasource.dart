@@ -1,8 +1,7 @@
+import 'package:eduportfolio/core/data/models/evidence_model.dart';
+import 'package:eduportfolio/core/database/database_helper.dart';
+import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:sqflite/sqflite.dart';
-
-import '../../database/database_helper.dart';
-import '../../domain/entities/evidence.dart';
-import '../models/evidence_model.dart';
 
 /// Local data source for evidences
 ///
@@ -139,7 +138,7 @@ class EvidenceLocalDataSource {
   /// Insert evidence
   Future<int> insertEvidence(EvidenceModel evidence) async {
     final db = await _databaseHelper.database;
-    return await db.insert(
+    return db.insert(
       'evidences',
       evidence.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -149,7 +148,7 @@ class EvidenceLocalDataSource {
   /// Update evidence
   Future<int> updateEvidence(EvidenceModel evidence) async {
     final db = await _databaseHelper.database;
-    return await db.update(
+    return db.update(
       'evidences',
       evidence.toMap(),
       where: 'id = ?',
@@ -160,7 +159,7 @@ class EvidenceLocalDataSource {
   /// Delete evidence
   Future<int> deleteEvidence(int id) async {
     final db = await _databaseHelper.database;
-    return await db.delete(
+    return db.delete(
       'evidences',
       where: 'id = ?',
       whereArgs: [id],
@@ -170,7 +169,7 @@ class EvidenceLocalDataSource {
   /// Assign evidence to student
   Future<int> assignEvidenceToStudent(int evidenceId, int studentId) async {
     final db = await _databaseHelper.database;
-    return await db.update(
+    return db.update(
       'evidences',
       {
         'student_id': studentId,

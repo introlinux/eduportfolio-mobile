@@ -1,22 +1,17 @@
-import '../../domain/entities/evidence.dart';
+import 'package:eduportfolio/core/domain/entities/evidence.dart';
 
 /// Evidence model for data layer
 ///
 /// Extends Evidence entity with database serialization.
 class EvidenceModel extends Evidence {
   const EvidenceModel({
-    super.id,
+    required super.subjectId, required super.type, required super.filePath, required super.captureDate, required super.createdAt, super.id,
     super.studentId,
-    required super.subjectId,
-    required super.type,
-    required super.filePath,
     super.thumbnailPath,
     super.fileSize,
     super.duration,
-    required super.captureDate,
     super.isReviewed,
     super.notes,
-    required super.createdAt,
   });
 
   /// Create model from entity

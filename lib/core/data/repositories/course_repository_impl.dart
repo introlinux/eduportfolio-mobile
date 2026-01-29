@@ -1,8 +1,8 @@
-import '../../domain/entities/course.dart';
-import '../../domain/repositories/course_repository.dart';
-import '../../errors/exceptions.dart';
-import '../datasources/course_local_datasource.dart';
-import '../models/course_model.dart';
+import 'package:eduportfolio/core/data/datasources/course_local_datasource.dart';
+import 'package:eduportfolio/core/data/models/course_model.dart';
+import 'package:eduportfolio/core/domain/entities/course.dart';
+import 'package:eduportfolio/core/domain/repositories/course_repository.dart';
+import 'package:eduportfolio/core/errors/exceptions.dart';
 
 /// Implementation of CourseRepository
 ///
@@ -56,7 +56,7 @@ class CourseRepositoryImpl implements CourseRepository {
   Future<void> updateCourse(Course course) async {
     try {
       if (course.id == null) {
-        throw InvalidDataException('Course ID cannot be null for update');
+        throw const InvalidDataException('Course ID cannot be null for update');
       }
       final model = CourseModel.fromEntity(course);
       await _localDataSource.updateCourse(model);

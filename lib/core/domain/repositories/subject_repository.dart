@@ -1,4 +1,4 @@
-import '../entities/subject.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 
 /// Repository interface for subjects
 ///

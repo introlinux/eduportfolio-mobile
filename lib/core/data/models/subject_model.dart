@@ -1,16 +1,14 @@
-import '../../domain/entities/subject.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 
 /// Subject model for data layer
 ///
 /// Extends Subject entity with database serialization.
 class SubjectModel extends Subject {
   const SubjectModel({
-    super.id,
-    required super.name,
+    required super.name, required super.createdAt, super.id,
     super.color,
     super.icon,
     super.isDefault,
-    required super.createdAt,
   });
 
   /// Create model from entity

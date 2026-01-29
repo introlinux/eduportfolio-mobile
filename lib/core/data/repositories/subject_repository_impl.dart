@@ -1,8 +1,8 @@
-import '../../domain/entities/subject.dart';
-import '../../domain/repositories/subject_repository.dart';
-import '../../errors/exceptions.dart';
-import '../datasources/subject_local_datasource.dart';
-import '../models/subject_model.dart';
+import 'package:eduportfolio/core/data/datasources/subject_local_datasource.dart';
+import 'package:eduportfolio/core/data/models/subject_model.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
+import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
+import 'package:eduportfolio/core/errors/exceptions.dart';
 
 /// Implementation of SubjectRepository
 ///
@@ -66,7 +66,7 @@ class SubjectRepositoryImpl implements SubjectRepository {
   Future<void> updateSubject(Subject subject) async {
     try {
       if (subject.id == null) {
-        throw InvalidDataException('Subject ID cannot be null for update');
+        throw const InvalidDataException('Subject ID cannot be null for update');
       }
       final model = SubjectModel.fromEntity(subject);
       await _localDataSource.updateSubject(model);

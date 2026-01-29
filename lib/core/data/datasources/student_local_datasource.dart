@@ -1,7 +1,6 @@
+import 'package:eduportfolio/core/data/models/student_model.dart';
+import 'package:eduportfolio/core/database/database_helper.dart';
 import 'package:sqflite/sqflite.dart';
-
-import '../../database/database_helper.dart';
-import '../models/student_model.dart';
 
 /// Local data source for students
 ///
@@ -90,7 +89,7 @@ class StudentLocalDataSource {
   /// Insert student
   Future<int> insertStudent(StudentModel student) async {
     final db = await _databaseHelper.database;
-    return await db.insert(
+    return db.insert(
       'students',
       student.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -100,7 +99,7 @@ class StudentLocalDataSource {
   /// Update student
   Future<int> updateStudent(StudentModel student) async {
     final db = await _databaseHelper.database;
-    return await db.update(
+    return db.update(
       'students',
       student.toMap(),
       where: 'id = ?',
@@ -113,7 +112,7 @@ class StudentLocalDataSource {
   /// Note: This will set student_id to NULL in evidences table (ON DELETE SET NULL)
   Future<int> deleteStudent(int id) async {
     final db = await _databaseHelper.database;
-    return await db.delete(
+    return db.delete(
       'students',
       where: 'id = ?',
       whereArgs: [id],

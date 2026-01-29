@@ -58,18 +58,13 @@ class Evidence {
   final DateTime createdAt;
 
   const Evidence({
-    this.id,
+    required this.subjectId, required this.type, required this.filePath, required this.captureDate, required this.createdAt, this.id,
     this.studentId,
-    required this.subjectId,
-    required this.type,
-    required this.filePath,
     this.thumbnailPath,
     this.fileSize,
     this.duration,
-    required this.captureDate,
     this.isReviewed = true,
     this.notes,
-    required this.createdAt,
   });
 
   /// Create a copy with updated fields
