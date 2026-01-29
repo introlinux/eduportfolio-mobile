@@ -109,6 +109,8 @@ eduportfolio/
 ├── android/                    # Configuración Android
 ├── ios/                        # Configuración iOS
 ├── docs/                       # Documentación adicional
+│   ├── FACE_RECOGNITION.md     # Sistema de reconocimiento facial
+│   ├── COURSE_MANAGEMENT.md    # Gestión de cursos escolares
 │   ├── architecture.md         # Arquitectura del sistema
 │   ├── database_schema.md      # Esquema de base de datos
 │   └── api_reference.md        # Referencia de APIs internas
@@ -461,16 +463,25 @@ La aplicación soporta los siguientes idiomas:
 
 ## 📈 Roadmap
 
-### Fase 1 (MVP) - TFM ✅
-- [x] Arquitectura base del proyecto
-- [ ] Vista principal con asignaturas
-- [ ] Vista de captura multimedia
-- [ ] Reconocimiento facial básico
-- [ ] Vista de galería
-- [ ] Vista de configuración
-- [ ] Vista de revisión manual
-- [ ] Tests unitarios, widget e integración
-- [ ] Documentación completa
+### Fase 1 (MVP) - TFM 🚧
+- [x] Arquitectura base del proyecto (Clean Architecture)
+- [x] Modelo de datos y repositorios (SQLite)
+- [x] Vista principal (Home) con asignaturas
+- [x] Vista de captura multimedia (Capture & QuickCapture)
+- [x] Reconocimiento facial básico (placeholder mode)
+  - [x] FaceTrainingScreen (captura 5 fotos)
+  - [x] Integración en QuickCaptureScreen
+  - [x] Servicios de detección, embeddings y reconocimiento
+- [x] Vista de galería (Gallery & EvidenceDetail)
+- [x] Gestión de estudiantes (Students)
+- [x] Gestión de cursos escolares (Courses)
+- [x] Tests unitarios (Core, UseCases, Services)
+- [x] Documentación técnica
+- [ ] Vista de configuración completa
+- [ ] Vista de revisión manual (Review)
+- [ ] Tests de widgets e integración
+- [ ] Integración de modelo TFLite real
+- [ ] Pruebas en dispositivos reales
 
 ### Fase 2 (Futuro)
 - [ ] Sincronización con aplicación de escritorio
