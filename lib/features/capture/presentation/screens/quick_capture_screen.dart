@@ -115,8 +115,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         _previewImagePath = image.path;
       });
 
-      // Auto-save after 1 second unless cancelled
-      await Future.delayed(const Duration(milliseconds: 1000));
+      // Auto-save after 2 seconds unless cancelled
+      await Future.delayed(const Duration(milliseconds: 2000));
 
       // If preview still showing (not cancelled), save
       if (mounted && _previewImagePath != null) {
@@ -386,7 +386,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _cancelPreview,
                   icon: const Icon(Icons.close),
-                  label: const Text('REPETIR'),
+                  label: const Text('CANCELAR'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
