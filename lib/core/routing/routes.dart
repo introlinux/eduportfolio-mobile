@@ -7,6 +7,7 @@ import 'package:eduportfolio/features/courses/presentation/screens/courses_scree
 import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
+import 'package:eduportfolio/features/review/presentation/screens/review_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/face_training_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_detail_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_form_screen.dart';
@@ -29,8 +30,8 @@ class AppRoutes {
   static const String faceTraining = '/face-training';
   static const String courses = '/courses';
   static const String courseForm = '/course-form';
-  static const String config = '/config';
   static const String review = '/review';
+  static const String config = '/config';
 
   /// Generate routes for the app
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -170,6 +171,12 @@ class AppRoutes {
           builder: (_) => CourseFormScreen(
             courseId: courseId,
           ),
+          settings: settings,
+        );
+
+      case review:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ReviewScreen(),
           settings: settings,
         );
 

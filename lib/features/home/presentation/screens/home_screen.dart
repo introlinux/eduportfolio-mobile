@@ -28,12 +28,17 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Eduportfolio'),
         actions: [
-          // Pending badge
+          // Pending badge (tappable - navigates to review screen)
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
               child: pendingCountAsync.when(
-                data: (count) => PendingBadge(count: count),
+                data: (count) => PendingBadge(
+                  count: count,
+                  onTap: () {
+                    Navigator.of(context).pushNamed('/review');
+                  },
+                ),
                 loading: () => const SizedBox.shrink(),
                 error: (error, stackTrace) => const SizedBox.shrink(),
               ),
