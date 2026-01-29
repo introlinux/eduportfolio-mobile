@@ -1,18 +1,17 @@
+import 'package:eduportfolio/core/data/datasources/course_local_datasource.dart';
+import 'package:eduportfolio/core/data/datasources/evidence_local_datasource.dart';
+import 'package:eduportfolio/core/data/datasources/student_local_datasource.dart';
+import 'package:eduportfolio/core/data/datasources/subject_local_datasource.dart';
+import 'package:eduportfolio/core/data/repositories/course_repository_impl.dart';
+import 'package:eduportfolio/core/data/repositories/evidence_repository_impl.dart';
+import 'package:eduportfolio/core/data/repositories/student_repository_impl.dart';
+import 'package:eduportfolio/core/data/repositories/subject_repository_impl.dart';
+import 'package:eduportfolio/core/database/database_providers.dart';
+import 'package:eduportfolio/core/domain/repositories/course_repository.dart';
+import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
+import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../data/datasources/course_local_datasource.dart';
-import '../data/datasources/evidence_local_datasource.dart';
-import '../data/datasources/student_local_datasource.dart';
-import '../data/datasources/subject_local_datasource.dart';
-import '../data/repositories/course_repository_impl.dart';
-import '../data/repositories/evidence_repository_impl.dart';
-import '../data/repositories/student_repository_impl.dart';
-import '../data/repositories/subject_repository_impl.dart';
-import '../database/database_providers.dart';
-import '../domain/repositories/course_repository.dart';
-import '../domain/repositories/evidence_repository.dart';
-import '../domain/repositories/student_repository.dart';
-import '../domain/repositories/subject_repository.dart';
 
 // ============================================================================
 // DATASOURCE PROVIDERS

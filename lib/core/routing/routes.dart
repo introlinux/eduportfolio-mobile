@@ -1,6 +1,5 @@
+import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
 import 'package:flutter/material.dart';
-
-import '../../features/home/presentation/screens/home_screen.dart';
 
 /// App routes configuration
 class AppRoutes {
@@ -37,7 +36,7 @@ class AppRoutes {
   /// Error route for unknown paths
   static Route<dynamic> _errorRoute(RouteSettings settings) {
     return MaterialPageRoute<void>(
-      builder: (_) => Scaffold(
+      builder: (context) => Scaffold(
         appBar: AppBar(
           title: const Text('Error'),
         ),
@@ -53,12 +52,12 @@ class AppRoutes {
               const SizedBox(height: 16),
               Text(
                 'Ruta no encontrada',
-                style: Theme.of(_).textTheme.titleLarge,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
               Text(
                 settings.name ?? 'Desconocida',
-                style: Theme.of(_).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),

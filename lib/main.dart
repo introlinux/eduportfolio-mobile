@@ -1,7 +1,6 @@
+import 'package:eduportfolio/core/routing/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'core/routing/routes.dart';
 
 void main() {
   runApp(
@@ -25,13 +24,12 @@ class EduportfolioApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6750A4), // Material 3 purple
-          brightness: Brightness.light,
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),

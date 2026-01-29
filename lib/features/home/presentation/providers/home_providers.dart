@@ -1,10 +1,9 @@
+import 'package:eduportfolio/core/domain/entities/subject.dart';
+import 'package:eduportfolio/core/providers/core_providers.dart';
+import 'package:eduportfolio/features/home/domain/usecases/count_pending_evidences_usecase.dart';
+import 'package:eduportfolio/features/home/domain/usecases/get_default_subjects_usecase.dart';
+import 'package:eduportfolio/features/home/domain/usecases/get_storage_info_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../../core/domain/entities/subject.dart';
-import '../../../../core/providers/core_providers.dart';
-import '../../domain/usecases/count_pending_evidences_usecase.dart';
-import '../../domain/usecases/get_default_subjects_usecase.dart';
-import '../../domain/usecases/get_storage_info_usecase.dart';
 
 // ============================================================================
 // USECASE PROVIDERS
@@ -37,17 +36,17 @@ final getStorageInfoUseCaseProvider = Provider<GetStorageInfoUseCase>((ref) {
 /// Provider to get default subjects
 final defaultSubjectsProvider = FutureProvider<List<Subject>>((ref) async {
   final useCase = ref.watch(getDefaultSubjectsUseCaseProvider);
-  return await useCase();
+  return useCase();
 });
 
 /// Provider to count pending evidences
 final pendingEvidencesCountProvider = FutureProvider<int>((ref) async {
   final useCase = ref.watch(countPendingEvidencesUseCaseProvider);
-  return await useCase();
+  return useCase();
 });
 
 /// Provider to get storage info
 final storageInfoProvider = FutureProvider<StorageInfo>((ref) async {
   final useCase = ref.watch(getStorageInfoUseCaseProvider);
-  return await useCase();
+  return useCase();
 });

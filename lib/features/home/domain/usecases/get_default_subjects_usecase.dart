@@ -10,6 +10,6 @@ class GetDefaultSubjectsUseCase {
   GetDefaultSubjectsUseCase(this._repository);
 
   Future<List<Subject>> call() async {
-    return await _repository.getDefaultSubjects();
+    return _repository.getDefaultSubjects();
   }
 }

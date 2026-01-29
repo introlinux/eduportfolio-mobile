@@ -1,6 +1,5 @@
+import 'package:eduportfolio/features/home/domain/usecases/get_storage_info_usecase.dart';
 import 'package:flutter/material.dart';
-
-import '../../domain/usecases/get_storage_info_usecase.dart';
 
 /// Widget to show storage information
 class StorageIndicator extends StatelessWidget {

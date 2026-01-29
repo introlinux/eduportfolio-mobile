@@ -1,10 +1,9 @@
+import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
+import 'package:eduportfolio/features/home/presentation/widgets/pending_badge.dart';
+import 'package:eduportfolio/features/home/presentation/widgets/storage_indicator.dart';
+import 'package:eduportfolio/features/home/presentation/widgets/subject_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../providers/home_providers.dart';
-import '../widgets/pending_badge.dart';
-import '../widgets/storage_indicator.dart';
-import '../widgets/subject_card.dart';
 
 /// Home screen - Main screen of the application
 ///
@@ -35,7 +34,7 @@ class HomeScreen extends ConsumerWidget {
               child: pendingCountAsync.when(
                 data: (count) => PendingBadge(count: count),
                 loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (error, stackTrace) => const SizedBox.shrink(),
               ),
             ),
           ),
@@ -65,7 +64,7 @@ class HomeScreen extends ConsumerWidget {
                 child: StorageIndicator(info: info),
               ),
               loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (error, stackTrace) => const SizedBox.shrink(),
             ),
           ),
           // Subjects grid
@@ -82,7 +81,6 @@ class HomeScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    childAspectRatio: 1.0,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                   ),

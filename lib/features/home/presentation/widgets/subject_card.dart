@@ -1,6 +1,5 @@
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:flutter/material.dart';
-
-import '../../../../core/domain/entities/subject.dart';
 
 /// Card widget to display a subject in the home screen
 class SubjectCard extends StatelessWidget {
@@ -31,7 +30,7 @@ class SubjectCard extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 color,
-                color.withOpacity(0.7),
+                color.withValues(alpha: 0.7),
               ],
             ),
           ),
@@ -44,7 +43,7 @@ class SubjectCard extends StatelessWidget {
                 child: Icon(
                   _getSubjectIcon(subject.name),
                   size: 120,
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                 ),
               ),
               // Content
@@ -70,7 +69,7 @@ class SubjectCard extends StatelessWidget {
                     Text(
                       'Toca para capturar',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],

@@ -11,6 +11,6 @@ class CountPendingEvidencesUseCase {
   CountPendingEvidencesUseCase(this._repository);
 
   Future<int> call() async {
-    return await _repository.countEvidencesNeedingReview();
+    return _repository.countEvidencesNeedingReview();
   }
 }
