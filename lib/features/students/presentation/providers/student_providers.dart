@@ -5,6 +5,7 @@ import 'package:eduportfolio/features/students/domain/usecases/delete_student_us
 import 'package:eduportfolio/features/students/domain/usecases/get_all_students_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/get_student_by_id_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/get_students_by_course_usecase.dart';
+import 'package:eduportfolio/features/students/domain/usecases/update_student_face_data_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/update_student_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -47,6 +48,13 @@ final updateStudentUseCaseProvider = Provider<UpdateStudentUseCase>((ref) {
 final deleteStudentUseCaseProvider = Provider<DeleteStudentUseCase>((ref) {
   final repository = ref.watch(studentRepositoryProvider);
   return DeleteStudentUseCase(repository);
+});
+
+/// Provider for UpdateStudentFaceDataUseCase
+final updateStudentFaceDataUseCaseProvider =
+    Provider<UpdateStudentFaceDataUseCase>((ref) {
+  final repository = ref.watch(studentRepositoryProvider);
+  return UpdateStudentFaceDataUseCase(repository);
 });
 
 // ============================================================================

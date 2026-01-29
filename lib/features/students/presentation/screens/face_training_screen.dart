@@ -165,22 +165,17 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         _capturedPhotos,
       );
 
-      if (!result.success) {
+      if (!result.success || result.averageEmbedding == null) {
         throw Exception(result.error ?? 'Error procesando fotos');
       }
 
       // Update student with face embeddings
-      final updateUseCase = ref.read(updateStudentUseCaseProvider);
-      await updateUseCase(
-        id: widget.student.id!,
-        courseId: widget.student.courseId,
-        name: widget.student.name,
-        createdAt: widget.student.createdAt,
+      final updateFaceDataUseCase =
+          ref.read(updateStudentFaceDataUseCaseProvider);
+      await updateFaceDataUseCase(
+        studentId: widget.student.id!,
+        faceEmbeddings: result.averageEmbedding!,
       );
-
-      // TODO: Update faceEmbeddings in student
-      // This requires adding a method to update face embeddings specifically
-      // For now, we'll show success message
 
       // Clean up temporary files
       for (final photo in _capturedPhotos) {
