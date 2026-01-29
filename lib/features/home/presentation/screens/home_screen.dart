@@ -1,0 +1,160 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../providers/home_providers.dart';
+import '../widgets/pending_badge.dart';
+import '../widgets/storage_indicator.dart';
+import '../widgets/subject_card.dart';
+
+/// Home screen - Main screen of the application
+///
+/// Shows:
+/// - Grid of default subjects
+/// - Pending evidences count
+/// - Storage information
+/// - FAB for quick capture
+class HomeScreen extends ConsumerWidget {
+  static const routeName = '/home';
+
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subjectsAsync = ref.watch(defaultSubjectsProvider);
+    final pendingCountAsync = ref.watch(pendingEvidencesCountProvider);
+    final storageInfoAsync = ref.watch(storageInfoProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Eduportfolio'),
+        actions: [
+          // Pending badge
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: pendingCountAsync.when(
+                data: (count) => PendingBadge(count: count),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+          // Config button
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              // TODO: Navigate to config screen
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Configuración próximamente'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Storage indicator
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: storageInfoAsync.when(
+              data: (info) => Align(
+                alignment: Alignment.centerLeft,
+                child: StorageIndicator(info: info),
+              ),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+          ),
+          // Subjects grid
+          Expanded(
+            child: subjectsAsync.when(
+              data: (subjects) {
+                if (subjects.isEmpty) {
+                  return const Center(
+                    child: Text('No hay asignaturas disponibles'),
+                  );
+                }
+
+                return GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 1.0,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: subjects.length,
+                  itemBuilder: (context, index) {
+                    final subject = subjects[index];
+                    return SubjectCard(
+                      subject: subject,
+                      onTap: () {
+                        // TODO: Navigate to capture screen
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Capturar ${subject.name}'),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              error: (error, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error al cargar asignaturas',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      error.toString(),
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        ref.invalidate(defaultSubjectsProvider);
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          // TODO: Navigate to capture screen with subject selector
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Captura rápida próximamente'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        },
+        icon: const Icon(Icons.camera_alt),
+        label: const Text('Capturar'),
+      ),
+    );
+  }
+}

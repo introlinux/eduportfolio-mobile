@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/home/presentation/screens/home_screen.dart';
+
 void main() {
   runApp(
     const ProviderScope(
@@ -37,17 +39,7 @@ class EduportfolioApp extends StatelessWidget {
           elevation: 4,
         ),
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'Eduportfolio',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
+      home: const HomeScreen(),
     );
   }
 }
