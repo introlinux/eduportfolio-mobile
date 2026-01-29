@@ -1,4 +1,4 @@
-# Eduportfolio (mobile versión)
+# Eduportfolio (versión mobile)
 
 **Sistema de captura y clasificación autónoma de trabajos escolares para Educación Infantil y Primaria**
 
