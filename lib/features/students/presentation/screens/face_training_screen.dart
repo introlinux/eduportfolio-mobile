@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
@@ -165,7 +167,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         _capturedPhotos,
       );
 
-      if (!result.success || result.averageEmbedding == null) {
+      if (!result.success || result.embeddingBytes.isEmpty) {
         throw Exception(result.error ?? 'Error procesando fotos');
       }
 
@@ -174,7 +176,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
           ref.read(updateStudentFaceDataUseCaseProvider);
       await updateFaceDataUseCase(
         studentId: widget.student.id!,
-        faceEmbeddings: result.averageEmbedding!,
+        faceEmbeddings: Uint8List.fromList(result.embeddingBytes),
       );
 
       // Clean up temporary files
