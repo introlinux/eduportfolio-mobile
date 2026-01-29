@@ -25,9 +25,9 @@ class UpdateStudentFaceDataUseCase {
     }
 
     // Update with face embeddings
+    // Note: hasFaceData will automatically be true when faceEmbeddings is set
     final updatedStudent = student.copyWith(
       faceEmbeddings: faceEmbeddings,
-      hasFaceData: true,
       updatedAt: DateTime.now(),
     );
 
