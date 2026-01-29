@@ -1,3 +1,4 @@
+import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -21,12 +22,19 @@ class AppRoutes {
           settings: settings,
         );
 
+      case capture:
+        // Extract optional preselected subject ID from arguments
+        final args = settings.arguments as Map<String, dynamic>?;
+        final preselectedSubjectId = args?['subjectId'] as int?;
+
+        return MaterialPageRoute<void>(
+          builder: (_) => CaptureScreen(
+            preselectedSubjectId: preselectedSubjectId,
+          ),
+          settings: settings,
+        );
+
       // TODO: Add other routes when screens are implemented
-      // case capture:
-      //   return MaterialPageRoute<void>(
-      //     builder: (_) => const CaptureScreen(),
-      //     settings: settings,
-      //   );
 
       default:
         return _errorRoute(settings);

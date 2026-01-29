@@ -1,5 +1,6 @@
 import 'package:eduportfolio/core/data/datasources/course_local_datasource.dart';
 import 'package:eduportfolio/core/data/datasources/evidence_local_datasource.dart';
+import 'package:eduportfolio/core/data/datasources/image_capture_datasource.dart';
 import 'package:eduportfolio/core/data/datasources/student_local_datasource.dart';
 import 'package:eduportfolio/core/data/datasources/subject_local_datasource.dart';
 import 'package:eduportfolio/core/data/repositories/course_repository_impl.dart';
@@ -40,6 +41,12 @@ final evidenceLocalDataSourceProvider =
     Provider<EvidenceLocalDataSource>((ref) {
   final databaseHelper = ref.watch(databaseHelperProvider);
   return EvidenceLocalDataSource(databaseHelper);
+});
+
+/// Provider for ImageCaptureDataSource
+final imageCaptureDataSourceProvider =
+    Provider<ImageCaptureDataSource>((ref) {
+  return ImageCaptureDataSourceImpl();
 });
 
 // ============================================================================

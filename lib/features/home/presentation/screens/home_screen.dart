@@ -90,12 +90,10 @@ class HomeScreen extends ConsumerWidget {
                     return SubjectCard(
                       subject: subject,
                       onTap: () {
-                        // TODO: Navigate to capture screen
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Capturar ${subject.name}'),
-                            duration: const Duration(seconds: 1),
-                          ),
+                        // Navigate to capture screen with preselected subject
+                        Navigator.of(context).pushNamed(
+                          '/capture',
+                          arguments: {'subjectId': subject.id},
                         );
                       },
                     );
@@ -142,13 +140,8 @@ class HomeScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // TODO: Navigate to capture screen with subject selector
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Captura rápida próximamente'),
-              duration: Duration(seconds: 1),
-            ),
-          );
+          // Navigate to capture screen without preselected subject
+          Navigator.of(context).pushNamed('/capture');
         },
         icon: const Icon(Icons.camera_alt),
         label: const Text('Capturar'),
