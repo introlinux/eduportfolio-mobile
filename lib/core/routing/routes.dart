@@ -1,4 +1,6 @@
 import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
+import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
+import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -10,6 +12,7 @@ class AppRoutes {
   static const String home = '/';
   static const String capture = '/capture';
   static const String gallery = '/gallery';
+  static const String evidenceDetail = '/evidence-detail';
   static const String config = '/config';
   static const String review = '/review';
 
@@ -30,6 +33,34 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => CaptureScreen(
             preselectedSubjectId: preselectedSubjectId,
+          ),
+          settings: settings,
+        );
+
+      case gallery:
+        // Extract optional preselected subject ID for filtering
+        final args = settings.arguments as Map<String, dynamic>?;
+        final preselectedSubjectId = args?['subjectId'] as int?;
+
+        return MaterialPageRoute<void>(
+          builder: (_) => GalleryScreen(
+            preselectedSubjectId: preselectedSubjectId,
+          ),
+          settings: settings,
+        );
+
+      case evidenceDetail:
+        // Extract required evidence ID
+        final args = settings.arguments as Map<String, dynamic>?;
+        final evidenceId = args?['evidenceId'] as int?;
+
+        if (evidenceId == null) {
+          return _errorRoute(settings);
+        }
+
+        return MaterialPageRoute<void>(
+          builder: (_) => EvidenceDetailScreen(
+            evidenceId: evidenceId,
           ),
           settings: settings,
         );

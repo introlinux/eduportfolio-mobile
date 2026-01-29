@@ -38,18 +38,13 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ),
-          // Config button
+          // Gallery button
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.photo_library),
             onPressed: () {
-              // TODO: Navigate to config screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Configuración próximamente'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
+              Navigator.of(context).pushNamed('/gallery');
             },
+            tooltip: 'Ver galería',
           ),
         ],
       ),
