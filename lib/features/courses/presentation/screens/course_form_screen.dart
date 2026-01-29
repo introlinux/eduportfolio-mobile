@@ -1,3 +1,4 @@
+import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
