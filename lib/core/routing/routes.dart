@@ -1,4 +1,6 @@
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
+import 'package:eduportfolio/features/capture/presentation/screens/quick_capture_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
@@ -11,6 +13,7 @@ class AppRoutes {
   // Route names
   static const String home = '/';
   static const String capture = '/capture';
+  static const String quickCapture = '/quick-capture';
   static const String gallery = '/gallery';
   static const String evidenceDetail = '/evidence-detail';
   static const String config = '/config';
@@ -33,6 +36,24 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => CaptureScreen(
             preselectedSubjectId: preselectedSubjectId,
+          ),
+          settings: settings,
+        );
+
+      case quickCapture:
+        // Extract required subject and subject ID from arguments
+        final args = settings.arguments as Map<String, dynamic>?;
+        final subject = args?['subject'] as Subject?;
+        final subjectId = args?['subjectId'] as int?;
+
+        if (subject == null || subjectId == null) {
+          return _errorRoute(settings);
+        }
+
+        return MaterialPageRoute<void>(
+          builder: (_) => QuickCaptureScreen(
+            subject: subject,
+            subjectId: subjectId,
           ),
           settings: settings,
         );

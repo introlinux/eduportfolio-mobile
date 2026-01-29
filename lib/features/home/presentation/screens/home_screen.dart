@@ -85,10 +85,13 @@ class HomeScreen extends ConsumerWidget {
                     return SubjectCard(
                       subject: subject,
                       onTap: () {
-                        // Navigate to capture screen with preselected subject
+                        // Navigate to quick capture screen with preselected subject
                         Navigator.of(context).pushNamed(
-                          '/capture',
-                          arguments: {'subjectId': subject.id},
+                          '/quick-capture',
+                          arguments: {
+                            'subject': subject,
+                            'subjectId': subject.id,
+                          },
                         );
                       },
                     );
