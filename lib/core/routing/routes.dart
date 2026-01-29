@@ -4,6 +4,9 @@ import 'package:eduportfolio/features/capture/presentation/screens/quick_capture
 import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
+import 'package:eduportfolio/features/students/presentation/screens/student_detail_screen.dart';
+import 'package:eduportfolio/features/students/presentation/screens/student_form_screen.dart';
+import 'package:eduportfolio/features/students/presentation/screens/students_screen.dart';
 import 'package:flutter/material.dart';
 
 /// App routes configuration
@@ -16,6 +19,9 @@ class AppRoutes {
   static const String quickCapture = '/quick-capture';
   static const String gallery = '/gallery';
   static const String evidenceDetail = '/evidence-detail';
+  static const String students = '/students';
+  static const String studentForm = '/student-form';
+  static const String studentDetail = '/student-detail';
   static const String config = '/config';
   static const String review = '/review';
 
@@ -82,6 +88,46 @@ class AppRoutes {
         return MaterialPageRoute<void>(
           builder: (_) => EvidenceDetailScreen(
             evidenceId: evidenceId,
+          ),
+          settings: settings,
+        );
+
+      case students:
+        // Extract optional preselected course ID for filtering
+        final args = settings.arguments as Map<String, dynamic>?;
+        final preselectedCourseId = args?['courseId'] as int?;
+
+        return MaterialPageRoute<void>(
+          builder: (_) => StudentsScreen(
+            preselectedCourseId: preselectedCourseId,
+          ),
+          settings: settings,
+        );
+
+      case studentForm:
+        // Extract optional student ID for editing
+        final args = settings.arguments as Map<String, dynamic>?;
+        final studentId = args?['studentId'] as int?;
+
+        return MaterialPageRoute<void>(
+          builder: (_) => StudentFormScreen(
+            studentId: studentId,
+          ),
+          settings: settings,
+        );
+
+      case studentDetail:
+        // Extract required student ID
+        final args = settings.arguments as Map<String, dynamic>?;
+        final studentId = args?['studentId'] as int?;
+
+        if (studentId == null) {
+          return _errorRoute(settings);
+        }
+
+        return MaterialPageRoute<void>(
+          builder: (_) => StudentDetailScreen(
+            studentId: studentId,
           ),
           settings: settings,
         );

@@ -38,6 +38,14 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ),
+          // Students button
+          IconButton(
+            icon: const Icon(Icons.people),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/students');
+            },
+            tooltip: 'Ver estudiantes',
+          ),
           // Gallery button
           IconButton(
             icon: const Icon(Icons.photo_library),
