@@ -3,8 +3,9 @@
     <!-- Permissions for Eduportfolio -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- WRITE_EXTERNAL_STORAGE no es necesario en Android 10+ con scoped storage -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-                     android:maxSdkVersion="32"
+                     android:maxSdkVersion="28"
                      tools:replace="android:maxSdkVersion" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
                      android:maxSdkVersion="32" />
