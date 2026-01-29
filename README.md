@@ -111,6 +111,7 @@ eduportfolio/
 ├── docs/                       # Documentación adicional
 │   ├── FACE_RECOGNITION.md     # Sistema de reconocimiento facial
 │   ├── COURSE_MANAGEMENT.md    # Gestión de cursos escolares
+│   ├── REVIEW_SCREEN.md        # Pantalla de revisión manual
 │   ├── architecture.md         # Arquitectura del sistema
 │   ├── database_schema.md      # Esquema de base de datos
 │   └── api_reference.md        # Referencia de APIs internas
