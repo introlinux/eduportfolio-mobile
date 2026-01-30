@@ -2,6 +2,7 @@ import 'package:eduportfolio/features/gallery/presentation/providers/gallery_pro
 import 'package:eduportfolio/features/gallery/presentation/widgets/evidence_card.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
+import 'package:eduportfolio/features/subjects/presentation/providers/subject_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -62,7 +63,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final evidencesAsync = ref.watch(filteredEvidencesProvider);
-    final subjectsAsync = ref.watch(defaultSubjectsProvider);
+    final subjectsAsync = ref.watch(allSubjectsProvider);
     final studentsAsync = ref.watch(filteredStudentsProvider);
     final selectedSubjectId = ref.watch(selectedSubjectFilterProvider);
     final selectedStudentId = ref.watch(selectedStudentFilterProvider);
@@ -450,7 +451,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   }
 
   Future<void> _handleAssignSubject(BuildContext context, WidgetRef ref) async {
-    final subjectsAsync = ref.read(defaultSubjectsProvider);
+    final subjectsAsync = ref.read(allSubjectsProvider);
     final subjects = subjectsAsync.value;
 
     if (subjects == null || subjects.isEmpty) {
