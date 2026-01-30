@@ -118,7 +118,7 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
                     maxScale: 8.0, // High zoom for reading small text
                     panEnabled: true,
                     scaleEnabled: true,
-                    constrained: false,
+                    // constrained: true (default) - fits image to screen initially
                     child: Image.file(
                       File(evidence.filePath),
                       fit: BoxFit.contain,

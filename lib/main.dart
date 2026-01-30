@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/routing/routes.dart';
+import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,11 +11,15 @@ void main() {
   );
 }
 
-class EduportfolioApp extends StatelessWidget {
+class EduportfolioApp extends ConsumerWidget {
   const EduportfolioApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Initialize face recognition service on app startup
+    // This ensures models are loaded before user tries to use them
+    ref.watch(faceRecognitionInitializedProvider);
+
     return MaterialApp(
       title: 'Eduportfolio',
       debugShowCheckedModeBanner: false,

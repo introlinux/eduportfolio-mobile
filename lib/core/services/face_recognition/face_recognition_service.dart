@@ -21,7 +21,21 @@ class FaceRecognitionService {
 
   /// Initialize the service
   Future<void> initialize() async {
+    print('');
+    print('╔════════════════════════════════════════╗');
+    print('║  FACE RECOGNITION SERVICE STARTUP     ║');
+    print('╚════════════════════════════════════════╝');
+    print('Initializing face recognition models...');
+    print('');
+
+    await _faceDetector.initialize();
     await _embeddingService.initialize();
+
+    print('');
+    print('╔════════════════════════════════════════╗');
+    print('║  FACE RECOGNITION SERVICE READY        ║');
+    print('╚════════════════════════════════════════╝');
+    print('');
   }
 
   /// Recognize student from image
@@ -190,6 +204,7 @@ class FaceRecognitionService {
 
   /// Dispose resources
   void dispose() {
+    _faceDetector.dispose();
     _embeddingService.dispose();
   }
 }

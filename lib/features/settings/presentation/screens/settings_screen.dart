@@ -1,6 +1,8 @@
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart'
     as gallery;
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
+import 'package:eduportfolio/features/review/presentation/providers/review_providers.dart'
+    as review;
 import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:flutter/material.dart';
@@ -225,8 +227,12 @@ class SettingsScreen extends ConsumerWidget {
 
         // Invalidate providers to refresh UI
         ref.invalidate(gallery.filteredEvidencesProvider);
+        ref.invalidate(review.unassignedEvidencesProvider);
         ref.invalidate(pendingEvidencesCountProvider);
         ref.invalidate(storageInfoProvider);
+
+        // Reset filters to prevent stale filter state
+        ref.read(review.reviewSubjectFilterProvider.notifier).state = null;
 
         // Show success message and navigate back to force refresh
         ScaffoldMessenger.of(context).showSnackBar(
@@ -288,9 +294,13 @@ class SettingsScreen extends ConsumerWidget {
 
         // Invalidate providers to refresh UI
         ref.invalidate(gallery.filteredEvidencesProvider);
+        ref.invalidate(review.unassignedEvidencesProvider);
         ref.invalidate(pendingEvidencesCountProvider);
         ref.invalidate(storageInfoProvider);
         ref.invalidate(filteredStudentsProvider);
+
+        // Reset filters to prevent stale filter state
+        ref.read(review.reviewSubjectFilterProvider.notifier).state = null;
 
         // Show success message and navigate back to force refresh
         ScaffoldMessenger.of(context).showSnackBar(

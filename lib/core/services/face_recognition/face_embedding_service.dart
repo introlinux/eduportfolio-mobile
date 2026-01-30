@@ -1,55 +1,113 @@
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
+import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 
 /// Service for extracting face embeddings
 ///
-/// This service converts face images into 128-dimensional vectors (embeddings)
+/// This service converts face images into 192-dimensional vectors (embeddings)
 /// that represent the unique characteristics of each face.
 ///
 /// Uses MobileFaceNet model (or similar) via TFLite
+/// NOTE: This model outputs 192D embeddings (not the standard 128D)
 class FaceEmbeddingService {
   final FaceDetectorService _faceDetector;
 
-  // TODO: Add TFLite Interpreter
-  // late Interpreter _interpreter;
+  /// TFLite interpreter for MobileFaceNet model
+  Interpreter? _interpreter;
 
   FaceEmbeddingService(this._faceDetector);
 
   /// Initialize the TFLite model
   ///
-  /// TODO: Load MobileFaceNet model from assets
-  /// assets/models/mobilefacenet.tflite
+  /// Loads MobileFaceNet model from assets
   Future<void> initialize() async {
+    print('========================================');
+    print('Initializing FaceEmbeddingService...');
+    print('========================================');
     try {
-      // TODO: Initialize TFLite interpreter
-      // _interpreter = await Interpreter.fromAsset('assets/models/mobilefacenet.tflite');
-      print('Face embedding service initialized (PLACEHOLDER MODE)');
-    } catch (e) {
-      print('Error initializing face embedding service: $e');
-      rethrow;
+      print('Loading MobileFaceNet model from assets...');
+      _interpreter = await Interpreter.fromAsset(
+        'assets/models/mobilefacenet.tflite',
+      );
+
+      print('✓ MobileFaceNet model loaded successfully');
+
+      final inputShape = _interpreter!.getInputTensor(0).shape;
+      final outputShape = _interpreter!.getOutputTensor(0).shape;
+
+      print('✓ Model shapes verified:');
+      print('  - Input: $inputShape (expected: [1, 112, 112, 3])');
+      print('  - Output: $outputShape (expected: [1, 192])');
+
+      // Verify correct dimensions
+      if (inputShape[1] != 112 || inputShape[2] != 112) {
+        throw Exception('Invalid model: Expected 112x112 input, got ${inputShape[1]}x${inputShape[2]}');
+      }
+      if (outputShape[1] != 192) {
+        throw Exception('Invalid model: Expected 192D output, got ${outputShape[1]}D');
+      }
+
+      print('✓ MobileFaceNet ready for embedding extraction');
+      print('========================================');
+    } catch (e, stackTrace) {
+      print('========================================');
+      print('✗ ERROR loading MobileFaceNet model');
+      print('✗ Error type: ${e.runtimeType}');
+      print('✗ Error details: $e');
+      print('✗ Stack trace (first 5 lines):');
+      final stackLines = stackTrace.toString().split('\n').take(5);
+      for (final line in stackLines) {
+        print('  $line');
+      }
+      print('✗ Embedding extraction will FAIL (returns null)');
+      print('✗ Please verify:');
+      print('  1. File exists: assets/models/mobilefacenet.tflite');
+      print('  2. pubspec.yaml includes: assets/models/');
+      print('  3. Run: flutter clean && flutter pub get');
+      print('  4. Check if tflite_flutter plugin installed correctly');
+      print('========================================');
+      // Don't rethrow - allow graceful degradation
     }
   }
 
   /// Extract embedding from face image
   ///
-  /// Returns a 128-dimensional vector representing the face
+  /// Returns a 192-dimensional vector representing the face
   /// Returns null if extraction fails
   Future<List<double>?> extractEmbedding(img.Image faceImage) async {
+    if (_interpreter == null) {
+      print('MobileFaceNet not initialized, using placeholder');
+      return _generatePlaceholderEmbedding();
+    }
+
     try {
-      // Normalize face for model input
+      // Normalize face for model input (already 112x112 from detector)
       final normalizedFace = _faceDetector.normalizeFaceForModel(faceImage);
 
-      // Convert to input tensor format
+      // Convert to input tensor [1, 112, 112, 3]
+      // _preprocessImage() is already correctly implemented
       final input = _preprocessImage(normalizedFace);
 
-      // TODO: Run inference with TFLite model
-      // var output = List.filled(128, 0.0).reshape([1, 128]);
-      // _interpreter.run(input, output);
-      // return output[0];
+      // Prepare output tensor [1, 192] (this model outputs 192D embeddings)
+      var output = List.generate(1, (_) => List.filled(192, 0.0));
 
-      // PLACEHOLDER: Return random embedding for testing
-      return _generatePlaceholderEmbedding();
+      // Run inference
+      _interpreter!.run(input, output);
+
+      // Extract embedding
+      final embedding = output[0];
+
+      // Verify that embedding is not all zeros
+      final sum = embedding.fold(0.0, (a, b) => a + b.abs());
+      if (sum == 0.0) {
+        print('Warning: Extracted all-zero embedding');
+        return null;
+      }
+
+      print('Extracted embedding: first 5 values = [${embedding.take(5).map((v) => v.toStringAsFixed(3)).join(", ")}]');
+
+      return embedding;
     } catch (e) {
       print('Error extracting embedding: $e');
       return null;
@@ -91,7 +149,7 @@ class FaceEmbeddingService {
     // Generate a consistent "embedding" based on timestamp
     // This is just for testing the infrastructure
     final seed = DateTime.now().millisecondsSinceEpoch % 1000;
-    return List.generate(128, (i) => (seed + i) / 1000.0);
+    return List.generate(192, (i) => (seed + i) / 1000.0);
   }
 
   /// Average multiple embeddings into one
@@ -165,8 +223,9 @@ class FaceEmbeddingService {
 
   /// Dispose resources
   void dispose() {
-    // TODO: Close TFLite interpreter
-    // _interpreter.close();
+    _interpreter?.close();
+    _interpreter = null;
+    print('Face embedding service disposed');
   }
 }
 

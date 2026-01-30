@@ -319,7 +319,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
   }
 
   Widget _buildPreview() {
-    if (_currentEvidence.type == 'IMG') {
+    if (_currentEvidence.type == EvidenceType.image) {
       return Image.file(
         File(_currentEvidence.filePath),
         fit: BoxFit.contain,
@@ -333,7 +333,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
           );
         },
       );
-    } else if (_currentEvidence.type == 'VID') {
+    } else if (_currentEvidence.type == EvidenceType.video) {
       // TODO: Add video player
       return const Center(
         child: Column(
@@ -350,6 +350,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
         ),
       );
     } else {
+      // EvidenceType.audio
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

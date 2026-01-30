@@ -129,7 +129,7 @@ class EvidenceReviewCard extends StatelessWidget {
                   return _buildPlaceholder(theme);
                 },
               )
-            : evidence.type == 'IMG'
+            : evidence.type == EvidenceType.image
                 ? Image.file(
                     File(evidence.filePath),
                     fit: BoxFit.cover,
@@ -154,14 +154,12 @@ class EvidenceReviewCard extends StatelessWidget {
 
   IconData _getTypeIcon() {
     switch (evidence.type) {
-      case 'IMG':
+      case EvidenceType.image:
         return Icons.image;
-      case 'VID':
+      case EvidenceType.video:
         return Icons.videocam;
-      case 'AUD':
+      case EvidenceType.audio:
         return Icons.mic;
-      default:
-        return Icons.insert_drive_file;
     }
   }
 

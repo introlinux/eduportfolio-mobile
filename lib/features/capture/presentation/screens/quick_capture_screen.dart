@@ -209,6 +209,10 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         studentId: studentId,
       );
 
+      // Invalidate home providers to refresh counts immediately
+      ref.invalidate(pendingEvidencesCountProvider);
+      ref.invalidate(storageInfoProvider);
+
       if (mounted) {
         setState(() => _capturedCount++);
 
@@ -315,15 +319,33 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   }
 
   Widget _buildCameraPreview() {
-    // Get the aspect ratio of the camera preview
-    final size = _cameraController!.value.previewSize!;
-    final deviceRatio = size.width / size.height;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Get camera preview size
+        final previewSize = _cameraController!.value.previewSize!;
 
-    return Center(
-      child: AspectRatio(
-        aspectRatio: deviceRatio,
-        child: CameraPreview(_cameraController!),
-      ),
+        // Calculate aspect ratios
+        // Camera preview is typically in landscape (width > height)
+        // We need to handle both portrait and landscape device orientations
+        final screenWidth = constraints.maxWidth;
+        final screenHeight = constraints.maxHeight;
+        final screenAspectRatio = screenWidth / screenHeight;
+
+        // Camera preview aspect ratio (swap if needed for portrait)
+        var previewAspectRatio = previewSize.width / previewSize.height;
+
+        // If screen is in portrait but preview is landscape, swap
+        if (screenAspectRatio < 1.0) {
+          previewAspectRatio = previewSize.height / previewSize.width;
+        }
+
+        return Center(
+          child: AspectRatio(
+            aspectRatio: previewAspectRatio,
+            child: CameraPreview(_cameraController!),
+          ),
+        );
+      },
     );
   }
 

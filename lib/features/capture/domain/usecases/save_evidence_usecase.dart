@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -42,12 +43,30 @@ class SaveEvidenceUseCase {
     final fileName = 'evidence_$timestamp$extension';
     final permanentPath = '${evidencesDir.path}/$fileName';
 
-    // Copy file from temporary location to permanent storage
+    // Read and fix image orientation from EXIF metadata
     final tempFile = File(tempImagePath);
-    await tempFile.copy(permanentPath);
+    final bytes = await tempFile.readAsBytes();
+    final image = img.decodeImage(bytes);
 
-    // Get file size
-    final fileSize = await tempFile.length();
+    int fileSize;
+
+    if (image != null) {
+      // Apply EXIF orientation to fix rotation issues
+      // This corrects images captured in landscape/portrait modes
+      final orientedImage = img.bakeOrientation(image);
+
+      // Encode and save the corrected image
+      final correctedBytes = img.encodeJpg(orientedImage, quality: 90);
+      await File(permanentPath).writeAsBytes(correctedBytes);
+
+      fileSize = correctedBytes.length;
+      print('✓ Image orientation corrected and saved: $permanentPath');
+    } else {
+      // Fallback: if image can't be decoded, just copy as-is
+      await tempFile.copy(permanentPath);
+      fileSize = await tempFile.length();
+      print('⚠️  Could not decode image, saved without orientation fix');
+    }
 
     final now = DateTime.now();
 
@@ -60,9 +79,9 @@ class SaveEvidenceUseCase {
       createdAt: now,
       studentId: studentId,
       fileSize: fileSize,
-      // TODO: When real face recognition is implemented, mark as reviewed if studentId != null
-      // For now, always mark as not reviewed since face recognition is in placeholder mode
-      isReviewed: false,
+      // Mark as reviewed if facial recognition assigned a student
+      // Only evidences without student assignment need manual review
+      isReviewed: studentId != null,
     );
 
     // Save to database and return the ID
