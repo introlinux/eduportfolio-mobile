@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
+import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:eduportfolio/features/subjects/presentation/providers/subject_providers.dart';
 import 'package:flutter/material.dart';
