@@ -12,12 +12,42 @@ class SubjectCard extends StatelessWidget {
     super.key,
   });
 
+  Color _getColorFromString(String? colorString) {
+    if (colorString == null) return _getSubjectColor(subject.name);
+    try {
+      return Color(int.parse(colorString));
+    } catch (e) {
+      return _getSubjectColor(subject.name);
+    }
+  }
+
+  IconData _getIconFromString(String? iconString) {
+    if (iconString == null) return _getSubjectIcon(subject.name);
+
+    final iconMap = {
+      'book': Icons.book,
+      'calculate': Icons.calculate,
+      'science': Icons.science,
+      'language': Icons.language,
+      'palette': Icons.palette,
+      'music_note': Icons.music_note,
+      'sports_soccer': Icons.sports_soccer,
+      'history_edu': Icons.history_edu,
+      'map': Icons.map,
+      'computer': Icons.computer,
+      'edit': Icons.edit,
+      'menu_book': Icons.menu_book,
+    };
+    return iconMap[iconString] ?? _getSubjectIcon(subject.name);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Default colors for subjects
-    final color = _getSubjectColor(subject.name);
+    // Use subject color or default
+    final color = _getColorFromString(subject.color);
+    final icon = _getIconFromString(subject.icon);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -41,7 +71,7 @@ class SubjectCard extends StatelessWidget {
                 right: -20,
                 bottom: -20,
                 child: Icon(
-                  _getSubjectIcon(subject.name),
+                  icon,
                   size: 120,
                   color: Colors.white.withValues(alpha: 0.2),
                 ),
@@ -53,7 +83,7 @@ class SubjectCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      _getSubjectIcon(subject.name),
+                      icon,
                       size: 32,
                       color: Colors.white,
                     ),

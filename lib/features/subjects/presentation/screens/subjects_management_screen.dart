@@ -207,7 +207,12 @@ class _SubjectListTile extends ConsumerWidget {
         ),
         title: Row(
           children: [
-            Text(subject.name),
+            Flexible(
+              child: Text(
+                subject.name,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (subject.isDefault) ...[
               const SizedBox(width: 8),
               Container(
@@ -220,10 +225,11 @@ class _SubjectListTile extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'PREDETERMINADA',
+                  'DEFAULT',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.bold,
+                    fontSize: 10,
                   ),
                 ),
               ),
