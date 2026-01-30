@@ -84,8 +84,45 @@ class SubjectLocalDataSource {
   }
 
   /// Delete subject
+  /// If the subject has evidences, they will be reassigned to the first default subject
+  /// If no default subject exists, the deletion will fail
   Future<int> deleteSubject(int id) async {
     final db = await _databaseHelper.database;
+
+    // Check if there are evidences with this subject
+    final evidencesCount = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM evidences WHERE subject_id = ?',
+      [id],
+    );
+    final count = Sqflite.firstIntValue(evidencesCount) ?? 0;
+
+    if (count > 0) {
+      // Find the first default subject (excluding the one being deleted)
+      final defaultSubjects = await db.query(
+        'subjects',
+        where: 'is_default = ? AND id != ?',
+        whereArgs: [1, id],
+        limit: 1,
+      );
+
+      if (defaultSubjects.isEmpty) {
+        throw Exception(
+          'Cannot delete subject: $count evidences are using this subject and no other default subject exists to reassign them.',
+        );
+      }
+
+      final defaultSubjectId = defaultSubjects.first['id'] as int;
+
+      // Reassign all evidences to the first default subject
+      await db.update(
+        'evidences',
+        {'subject_id': defaultSubjectId, 'is_reviewed': 0}, // Mark as not reviewed
+        where: 'subject_id = ?',
+        whereArgs: [id],
+      );
+    }
+
+    // Now delete the subject
     return db.delete(
       'subjects',
       where: 'id = ?',

@@ -163,11 +163,36 @@ class _SubjectListTile extends ConsumerWidget {
 
   const _SubjectListTile({required this.subject});
 
-  Color _getColorFromString(String colorString) {
-    return Color(int.parse(colorString));
+  Color _getColorFromString(String? colorString) {
+    if (colorString == null) return _getDefaultColor();
+    try {
+      return Color(int.parse(colorString));
+    } catch (e) {
+      return _getDefaultColor();
+    }
   }
 
-  IconData _getIconFromString(String iconString) {
+  Color _getDefaultColor() {
+    // Default color based on subject name
+    switch (subject.name.toLowerCase()) {
+      case 'matemáticas':
+        return const Color(0xFF1E88E5);
+      case 'lengua':
+        return const Color(0xFFE53935);
+      case 'ciencias':
+        return const Color(0xFF43A047);
+      case 'inglés':
+        return const Color(0xFFFB8C00);
+      case 'artística':
+        return const Color(0xFF8E24AA);
+      default:
+        return const Color(0xFF2196F3);
+    }
+  }
+
+  IconData _getIconFromString(String? iconString) {
+    if (iconString == null) return _getDefaultIcon();
+
     final iconMap = {
       'book': Icons.book,
       'calculate': Icons.calculate,
@@ -182,7 +207,25 @@ class _SubjectListTile extends ConsumerWidget {
       'edit': Icons.edit,
       'menu_book': Icons.menu_book,
     };
-    return iconMap[iconString] ?? Icons.book;
+    return iconMap[iconString] ?? _getDefaultIcon();
+  }
+
+  IconData _getDefaultIcon() {
+    // Default icon based on subject name
+    switch (subject.name.toLowerCase()) {
+      case 'matemáticas':
+        return Icons.calculate;
+      case 'lengua':
+        return Icons.menu_book;
+      case 'ciencias':
+        return Icons.science;
+      case 'inglés':
+        return Icons.language;
+      case 'artística':
+        return Icons.palette;
+      default:
+        return Icons.book;
+    }
   }
 
   @override
@@ -293,8 +336,10 @@ class _SubjectListTile extends ConsumerWidget {
         title: const Text('Eliminar asignatura'),
         content: Text(
           '¿Estás seguro de que quieres eliminar "${subject.name}"?\n\n'
-          'Las evidencias asociadas a esta asignatura NO se eliminarán, '
-          'pero quedarán sin asignatura.',
+          'Si hay evidencias asociadas:\n'
+          '• Se reasignarán a la primera asignatura predeterminada\n'
+          '• Se marcarán como pendientes de revisar\n'
+          '• Las evidencias NO se eliminarán',
         ),
         actions: [
           TextButton(
@@ -318,7 +363,7 @@ class _SubjectListTile extends ConsumerWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Asignatura eliminada'),
+              content: Text('Asignatura eliminada correctamente'),
               backgroundColor: Colors.green,
             ),
           );
@@ -327,8 +372,9 @@ class _SubjectListTile extends ConsumerWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: $e'),
+              content: Text('Error al eliminar: ${e.toString().replaceAll('Exception: ', '')}'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
             ),
           );
         }
