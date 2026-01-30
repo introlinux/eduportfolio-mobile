@@ -27,22 +27,116 @@ class EvidenceDetailScreen extends ConsumerStatefulWidget {
       _EvidenceDetailScreenState();
 }
 
-class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
+class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
+    with SingleTickerProviderStateMixin {
   late PageController _pageController;
   late int _currentIndex;
   bool _showMetadata = false; // Metadata hidden by default for max image space
+
+  // Transformation controller for each image to track zoom state
+  final Map<int, TransformationController> _transformControllers = {};
+  bool _wasZoomed = false; // Track previous zoom state to avoid unnecessary rebuilds
+
+  // Animation controller for smooth zoom transitions
+  late AnimationController _animationController;
+  Animation<Matrix4>? _zoomAnimation;
+  int? _animatingIndex; // Track which image is being animated
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+
+    // Initialize transformation controllers for all evidences
+    for (int i = 0; i < widget.evidences.length; i++) {
+      _transformControllers[i] = TransformationController();
+    }
+
+    // Initialize animation controller for zoom transitions
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..addListener(() {
+        if (_zoomAnimation != null && _animatingIndex != null) {
+          _transformControllers[_animatingIndex]?.value = _zoomAnimation!.value;
+        }
+      });
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _animationController.dispose();
+    for (var controller in _transformControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  // Check if current image is zoomed
+  bool get _isZoomed {
+    final controller = _transformControllers[_currentIndex];
+    if (controller == null) return false;
+    final scale = controller.value.getMaxScaleOnAxis();
+    return scale > 1.01; // Small threshold for floating point comparison
+  }
+
+  // Update PageView physics only when zoom state changes
+  void _updateZoomState() {
+    final isZoomed = _isZoomed;
+    if (isZoomed != _wasZoomed) {
+      setState(() {
+        _wasZoomed = isZoomed;
+      });
+    }
+  }
+
+  // Handle double tap with zoom animation focused on tap position
+  void _handleDoubleTap(int index, Offset tapPosition) {
+    final controller = _transformControllers[index]!;
+    final currentScale = controller.value.getMaxScaleOnAxis();
+
+    // Cancel any ongoing animation
+    _animationController.stop();
+    _animatingIndex = index;
+
+    Matrix4 endMatrix;
+
+    if (currentScale > 1.5) {
+      // Reset to no zoom with smooth animation
+      endMatrix = Matrix4.identity();
+    } else {
+      // Zoom to 2.5x centered on tap position
+      const targetScale = 2.5;
+
+      // Calculate transformation to zoom towards the tap position
+      // The focal point (tap position) should stay in the same screen position
+      final double focalPointX = tapPosition.dx;
+      final double focalPointY = tapPosition.dy;
+
+      // Create transformation matrix that zooms towards the focal point
+      // Formula: translate by (focal * (1 - scale)) then scale
+      // This keeps the focal point fixed in screen coordinates
+      endMatrix = Matrix4.identity()
+        ..translate(focalPointX * (1 - targetScale), focalPointY * (1 - targetScale))
+        ..scale(targetScale);
+    }
+
+    // Create animation from current matrix to end matrix
+    _zoomAnimation = Matrix4Tween(
+      begin: controller.value,
+      end: endMatrix,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Start animation
+    _animationController.forward(from: 0.0).then((_) {
+      _animatingIndex = null;
+      _updateZoomState();
+    });
   }
 
   Evidence get _currentEvidence => widget.evidences[_currentIndex];
@@ -80,6 +174,10 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
       body: PageView.builder(
         controller: _pageController,
         itemCount: widget.evidences.length,
+        // Allow swipe only when not zoomed
+        physics: _isZoomed
+            ? const NeverScrollableScrollPhysics()
+            : const PageScrollPhysics(),
         onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
@@ -113,34 +211,42 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
             children: [
               // Image with zoom/pan (pinch to zoom, drag to pan when zoomed)
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return InteractiveViewer(
-                      minScale: 1.0, // Cannot zoom out below initial fit
-                      maxScale: 8.0, // High zoom for reading small text
-                      panEnabled: false, // Disable initial pan, auto-enables when zoomed
-                      scaleEnabled: true,
-                      constrained: false, // Allow child to expand beyond initial bounds on zoom
-                      boundaryMargin: const EdgeInsets.all(double.infinity), // No pan boundaries
-                      child: Center(
-                        child: SizedBox(
-                          width: constraints.maxWidth,
-                          height: constraints.maxHeight,
-                          child: Image.file(
-                            File(evidence.filePath),
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.broken_image,
-                                size: 64,
-                                color: Colors.white,
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
+                child: GestureDetector(
+                  onDoubleTapDown: (details) {
+                    // Capture tap position for zoom focus
+                    _handleDoubleTap(index, details.localPosition);
                   },
+                  child: InteractiveViewer(
+                    transformationController: _transformControllers[index],
+                    minScale: 1.0,
+                    maxScale: 4.0,
+                    panEnabled: true,
+                    scaleEnabled: true,
+                    constrained: true,
+                    // Proper boundaries to prevent black frames
+                    boundaryMargin: const EdgeInsets.all(0),
+                    onInteractionUpdate: (details) {
+                      // Update PageView physics only if zoom state changed
+                      _updateZoomState();
+                    },
+                    onInteractionEnd: (details) {
+                      // Final update when interaction ends
+                      _updateZoomState();
+                    },
+                    child: Center(
+                      child: Image.file(
+                        File(evidence.filePath),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: Colors.white,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
               ),
               // Metadata section (collapsible with animation)

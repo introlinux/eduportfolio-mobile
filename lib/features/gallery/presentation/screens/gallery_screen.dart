@@ -27,6 +27,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   final Set<int> _selectedEvidenceIds = {};
   bool get _isSelectionMode => _selectedEvidenceIds.isNotEmpty;
 
+  // Track if initial filters have been set (to avoid resetting them)
+  bool _hasSetInitialFilters = false;
+
   void _toggleSelection(int evidenceId) {
     setState(() {
       if (_selectedEvidenceIds.contains(evidenceId)) {
@@ -65,20 +68,25 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     final selectedStudentId = ref.watch(selectedStudentFilterProvider);
     final reviewStatusFilter = ref.watch(reviewStatusFilterProvider);
 
-    // Set preselected subject filter on first build
-    if (widget.preselectedSubjectId != null && selectedSubjectId == null) {
+    // Set initial filters only once (on first build)
+    if (!_hasSetInitialFilters) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(selectedSubjectFilterProvider.notifier).state =
-            widget.preselectedSubjectId;
-      });
-    }
+        // Set preselected subject filter if provided
+        if (widget.preselectedSubjectId != null) {
+          ref.read(selectedSubjectFilterProvider.notifier).state =
+              widget.preselectedSubjectId;
+        }
 
-    // Set initial review filter on first build
-    if (widget.initialReviewFilter != null &&
-        reviewStatusFilter == ReviewStatusFilter.all) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(reviewStatusFilterProvider.notifier).state =
-            widget.initialReviewFilter!;
+        // Set initial review filter if provided
+        if (widget.initialReviewFilter != null) {
+          ref.read(reviewStatusFilterProvider.notifier).state =
+              widget.initialReviewFilter!;
+        }
+
+        // Mark that initial filters have been set
+        setState(() {
+          _hasSetInitialFilters = true;
+        });
       });
     }
 
