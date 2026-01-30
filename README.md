@@ -72,54 +72,46 @@ Este proyecto constituye el Trabajo Fin de Máster (TFM) y tiene como objetivo d
 eduportfolio/
 ├── lib/
 │   ├── core/
-│   │   ├── constants/          # Constantes globales
-│   │   ├── utils/              # Utilidades y helpers
-│   │   ├── encryption/         # Gestión de encriptación
-│   │   └── errors/             # Manejo de errores
-│   ├── data/
-│   │   ├── models/             # Modelos de datos
-│   │   ├── repositories/       # Repositorios de acceso a datos
-│   │   └── datasources/        # Fuentes de datos (SQLite, FileSystem)
-│   ├── domain/
-│   │   ├── entities/           # Entidades del dominio
-│   │   └── usecases/           # Casos de uso
-│   ├── presentation/
-│   │   ├── screens/            # Pantallas de la aplicación
-│   │   │   ├── home/           # Vista principal con asignaturas
-│   │   │   ├── capture/        # Vista de captura multimedia
-│   │   │   ├── gallery/        # Galería tipo timeline
-│   │   │   ├── config/         # Configuración y gestión
-│   │   │   └── review/         # Revisión manual de evidencias
-│   │   ├── widgets/            # Componentes reutilizables
-│   │   └── providers/          # Gestión de estado (Provider/Riverpod)
-│   ├── services/
-│   │   ├── face_recognition/   # Servicio de reconocimiento facial
-│   │   ├── media_capture/      # Servicio de captura multimedia
-│   │   ├── storage/            # Servicio de almacenamiento
-│   │   └── sync/               # Servicio de sincronización
-│   └── main.dart               # Punto de entrada
+│   │   ├── constants/
+│   │   ├── database/
+│   │   ├── domain/
+│   │   ├── errors/
+│   │   ├── providers/
+│   │   ├── routing/
+│   │   ├── services/
+│   │   └── utils/
+│   ├── features/
+│   │   ├── courses/
+│   │   ├── students/
+│   │   ├── capture/
+│   │   ├── gallery/
+│   │   ├── home/
+│   │   ├── review/
+│   │   └── settings/
+│   ├── main.dart
 ├── assets/
-│   ├── models/                 # Modelos TFLite
-│   ├── icons/                  # Iconos personalizados
-│   └── images/                 # Imágenes de la app
+│   ├── models/
+│   ├── icons/
+│   └── images/
 ├── test/
-│   ├── unit/                   # Tests unitarios
-│   ├── widget/                 # Tests de widgets
-│   └── integration/            # Tests de integración
-├── android/                    # Configuración Android
-├── ios/                        # Configuración iOS
-├── docs/                       # Documentación adicional
-│   ├── FACE_RECOGNITION.md     # Sistema de reconocimiento facial
-│   ├── COURSE_MANAGEMENT.md    # Gestión de cursos escolares
-│   ├── REVIEW_SCREEN.md        # Pantalla de revisión manual
-│   ├── architecture.md         # Arquitectura del sistema
-│   ├── database_schema.md      # Esquema de base de datos
-│   └── api_reference.md        # Referencia de APIs internas
+│   ├── unit/
+│   ├── widget/
+│   └── integration/
+├── android/
+├── ios/
+├── docs/
+│   ├── FACE_RECOGNITION.md
+│   ├── COURSE_MANAGEMENT.md
+│   ├── REVIEW_SCREEN.md
+│   ├── SETTINGS.md
+│   ├── architecture.md
+│   ├── database_schema.md
+│   └── api_reference.md
 ├── .github/
-│   └── workflows/              # GitHub Actions
-├── pubspec.yaml                # Dependencias del proyecto
-├── README.md                   # Este archivo
-└── AGENTS.md                   # Guía para IA generadora de código
+│   └── workflows/
+├── pubspec.yaml
+├── README.md
+└── AGENTS.md
 ```
 
 ---
@@ -253,7 +245,7 @@ Ejemplos:
 - Exportación de portfolio completo o parcial en formato ZIP
 - Selección múltiple de evidencias
 
-### 4. Vista de Configuración (Config)
+### 4. Vista de Ajustes (Settings)
 - **Gestión de alumnos**:
   - Alta de nuevos alumnos
   - Captura de 5 fotos de referencia para entrenamiento facial
@@ -374,7 +366,7 @@ CREATE TABLE evidences (
 ### Proceso de Entrenamiento
 1. Captura de 5 fotos de referencia por alumno
 2. Detección de rostros en cada imagen
-3. Extracción de embeddings (vectores de 128 dimensiones)
+3. Extracción de embeddings (vectores de 192 dimensiones)
 4. Almacenamiento encriptado en SQLite
 5. Promediado de embeddings para mayor robustez
 
@@ -383,7 +375,7 @@ CREATE TABLE evidences (
 2. Detección de rostro
 3. Extracción de embedding
 4. Comparación con embeddings almacenados (distancia euclidiana)
-5. Umbral de confianza: >0.6
+5. Umbral de confianza: >= 0.7
 6. Si no hay coincidencia: almacenamiento en carpeta temporal
 
 ---
@@ -469,10 +461,11 @@ La aplicación soporta los siguientes idiomas:
 - [x] Modelo de datos y repositorios (SQLite)
 - [x] Vista principal (Home) con asignaturas
 - [x] Vista de captura multimedia (Capture & QuickCapture)
-- [x] Reconocimiento facial básico (placeholder mode)
+- [x] Sistema de reconocimiento facial funcional
   - [x] FaceTrainingScreen (captura 5 fotos)
   - [x] Integración en QuickCaptureScreen
   - [x] Servicios de detección, embeddings y reconocimiento
+- [x] Integración de modelo TFLite real
 - [x] Vista de galería (Gallery & EvidenceDetail)
 - [x] Gestión de estudiantes (Students)
 - [x] Gestión de cursos escolares (Courses)
@@ -481,11 +474,10 @@ La aplicación soporta los siguientes idiomas:
   - [x] Asignación por lote
   - [x] Eliminación por lote con confirmación
   - [x] Preview a pantalla completa con navegación
+- [x] Vista de Ajustes (Settings) completa
 - [x] Tests unitarios (Core, UseCases, Services)
 - [x] Documentación técnica
-- [ ] Vista de configuración completa
 - [ ] Tests de widgets e integración
-- [ ] Integración de modelo TFLite real
 - [ ] Pruebas en dispositivos reales
 
 ### Fase 2 (Futuro)
@@ -528,9 +520,9 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 ## 🙏 Agradecimientos
 
-- A los docentes del máster por su guía y conocimientos
+- A los docentes del Máster en desarrollo con IA de BIGschool por su guía y conocimientos
 - A la comunidad de Flutter por las herramientas y recursos
-- A los modelos open-source de ML que hacen posible el reconocimiento facial on-device
+- A los modelos open-source que hacen posible el reconocimiento facial on-device
 - A los centros educativos que participarán en las pruebas piloto
 
 ---
@@ -539,7 +531,7 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 Para preguntas, sugerencias o reporte de bugs:
 - Issues en GitHub: [https://github.com/introlinux/eduportfolio/issues](https://github.com/introlinux/eduportfolio/issues)
-- Email: tu-email@ejemplo.com
+- Email: introlinux@gmail.com
 
 ---
 
