@@ -1,5 +1,9 @@
+import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
+import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart'
+    as gallery;
+import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/review/presentation/providers/review_providers.dart';
 import 'package:eduportfolio/features/review/presentation/widgets/batch_action_bar.dart';
 import 'package:eduportfolio/features/review/presentation/widgets/evidence_preview_dialog.dart';
@@ -20,6 +24,7 @@ class ReviewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final unassignedAsync = ref.watch(unassignedEvidencesProvider);
+    final subjectsAsync = ref.watch(defaultSubjectsProvider);
     final selectionMode = ref.watch(selectionModeProvider);
     final selectedEvidences = ref.watch(selectedEvidencesProvider);
 
@@ -73,8 +78,17 @@ class ReviewScreen extends ConsumerWidget {
                     final isSelected =
                         selectedEvidences.contains(evidence.id);
 
+                    // Get subject for this evidence
+                    final subject = subjectsAsync.whenOrNull(
+                      data: (subjects) => subjects.firstWhere(
+                        (s) => s.id == evidence.subjectId,
+                        orElse: () => subjects.first,
+                      ),
+                    );
+
                     return EvidenceReviewCard(
                       evidence: evidence,
+                      subject: subject,
                       isSelected: isSelected,
                       selectionMode: selectionMode,
                       onTap: () => _openPreview(context, ref, evidences, index),
@@ -241,7 +255,7 @@ class ReviewScreen extends ConsumerWidget {
   Future<void> _openPreview(
     BuildContext context,
     WidgetRef ref,
-    List evidences,
+    List<Evidence> evidences,
     int index,
   ) async {
     final activeCourse = await ref.read(activeCourseProvider.future);
@@ -271,6 +285,8 @@ class ReviewScreen extends ConsumerWidget {
       return;
     }
 
+    final subjects = await ref.read(defaultSubjectsProvider.future);
+
     if (!context.mounted) return;
 
     final changed = await showDialog<bool>(
@@ -279,6 +295,7 @@ class ReviewScreen extends ConsumerWidget {
         allEvidences: evidences,
         initialIndex: index,
         students: students,
+        subjects: subjects,
         onAssign: (evidenceId, studentId) =>
             _handleAssign(context, ref, evidenceId, studentId),
         onDelete: (evidenceId) => _handleDelete(context, ref, evidenceId),
@@ -287,6 +304,7 @@ class ReviewScreen extends ConsumerWidget {
 
     if (changed == true) {
       ref.invalidate(unassignedEvidencesProvider);
+      ref.invalidate(gallery.filteredEvidencesProvider);
     }
   }
 
@@ -299,6 +317,7 @@ class ReviewScreen extends ConsumerWidget {
     final assignUseCase = ref.read(assignEvidenceToStudentUseCaseProvider);
     await assignUseCase(evidenceId: evidenceId, studentId: studentId);
     ref.invalidate(unassignedEvidencesProvider);
+    ref.invalidate(gallery.filteredEvidencesProvider);
   }
 
   Future<void> _handleDelete(
@@ -309,6 +328,7 @@ class ReviewScreen extends ConsumerWidget {
     final deleteUseCase = ref.read(deleteEvidenceUseCaseProvider);
     await deleteUseCase(evidenceId);
     ref.invalidate(unassignedEvidencesProvider);
+    ref.invalidate(gallery.filteredEvidencesProvider);
   }
 
   Future<void> _handleBatchAssign(
@@ -340,6 +360,7 @@ class ReviewScreen extends ConsumerWidget {
       ref.read(selectionModeProvider.notifier).state = false;
       ref.read(selectedEvidencesProvider.notifier).state = {};
       ref.invalidate(unassignedEvidencesProvider);
+      ref.invalidate(gallery.filteredEvidencesProvider);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -402,6 +423,7 @@ class ReviewScreen extends ConsumerWidget {
       ref.read(selectionModeProvider.notifier).state = false;
       ref.read(selectedEvidencesProvider.notifier).state = {};
       ref.invalidate(unassignedEvidencesProvider);
+      ref.invalidate(gallery.filteredEvidencesProvider);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

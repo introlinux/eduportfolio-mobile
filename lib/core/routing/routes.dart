@@ -1,3 +1,4 @@
+import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
@@ -8,6 +9,7 @@ import 'package:eduportfolio/features/gallery/presentation/screens/evidence_deta
 import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/screens/home_screen.dart';
 import 'package:eduportfolio/features/review/presentation/screens/review_screen.dart';
+import 'package:eduportfolio/features/settings/presentation/screens/settings_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/face_training_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_detail_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_form_screen.dart';
@@ -85,17 +87,19 @@ class AppRoutes {
         );
 
       case evidenceDetail:
-        // Extract required evidence ID
+        // Extract required evidences list and initial index
         final args = settings.arguments as Map<String, dynamic>?;
-        final evidenceId = args?['evidenceId'] as int?;
+        final evidences = args?['evidences'] as List<Evidence>?;
+        final initialIndex = args?['initialIndex'] as int?;
 
-        if (evidenceId == null) {
+        if (evidences == null || initialIndex == null) {
           return _errorRoute(settings);
         }
 
         return MaterialPageRoute<void>(
           builder: (_) => EvidenceDetailScreen(
-            evidenceId: evidenceId,
+            evidences: evidences,
+            initialIndex: initialIndex,
           ),
           settings: settings,
         );
@@ -180,7 +184,11 @@ class AppRoutes {
           settings: settings,
         );
 
-      // TODO: Add other routes when screens are implemented
+      case config:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SettingsScreen(),
+          settings: settings,
+        );
 
       default:
         return _errorRoute(settings);

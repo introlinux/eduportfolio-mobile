@@ -14,8 +14,8 @@ class FaceRecognitionService {
 
   /// Similarity threshold for face matching (0.0 to 1.0)
   /// Higher = more strict matching
-  /// Recommended: 0.6 for good balance
-  static const double similarityThreshold = 0.6;
+  /// 0.7 provides good balance between accuracy and false positives
+  static const double similarityThreshold = 0.7;
 
   FaceRecognitionService(this._faceDetector, this._embeddingService);
 

@@ -33,10 +33,10 @@ class AssignMultipleEvidencesUseCase {
           continue;
         }
 
-        // Update evidence with student assignment
+        // Update evidence with student assignment and mark as reviewed
         final updated = evidence.copyWith(
           studentId: studentId,
-          updatedAt: DateTime.now(),
+          isReviewed: true,
         );
 
         await _repository.updateEvidence(updated);

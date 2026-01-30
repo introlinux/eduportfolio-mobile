@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -9,6 +10,7 @@ import 'package:intl/intl.dart';
 /// Shows thumbnail, metadata, and optional checkbox for selection
 class EvidenceReviewCard extends StatelessWidget {
   final Evidence evidence;
+  final Subject? subject;
   final bool isSelected;
   final bool selectionMode;
   final VoidCallback onTap;
@@ -16,6 +18,7 @@ class EvidenceReviewCard extends StatelessWidget {
 
   const EvidenceReviewCard({
     required this.evidence,
+    required this.subject,
     required this.isSelected,
     required this.selectionMode,
     required this.onTap,
@@ -67,7 +70,7 @@ class EvidenceReviewCard extends StatelessWidget {
                   children: [
                     // Subject name
                     Text(
-                      evidence.subject?.name ?? 'Sin asignatura',
+                      subject?.name ?? 'Sin asignatura',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),

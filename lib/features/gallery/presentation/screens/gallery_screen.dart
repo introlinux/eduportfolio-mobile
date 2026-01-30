@@ -1,6 +1,7 @@
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
 import 'package:eduportfolio/features/gallery/presentation/widgets/evidence_card.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
+import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,7 +21,9 @@ class GalleryScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final evidencesAsync = ref.watch(filteredEvidencesProvider);
     final subjectsAsync = ref.watch(defaultSubjectsProvider);
+    final studentsAsync = ref.watch(filteredStudentsProvider);
     final selectedSubjectId = ref.watch(selectedSubjectFilterProvider);
+    final selectedStudentId = ref.watch(selectedStudentFilterProvider);
 
     // Set preselected subject filter on first build
     if (preselectedSubjectId != null && selectedSubjectId == null) {
@@ -88,6 +91,62 @@ class GalleryScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (error, stackTrace) => const SizedBox.shrink(),
           ),
+          // Student filter dropdown
+          studentsAsync.when(
+            data: (students) {
+              if (students.isEmpty) return const SizedBox.shrink();
+
+              return PopupMenuButton<int?>(
+                icon: Icon(
+                  selectedStudentId == null
+                      ? Icons.person_outline
+                      : Icons.person,
+                ),
+                tooltip: 'Filtrar por estudiante',
+                onSelected: (studentId) {
+                  ref.read(selectedStudentFilterProvider.notifier).state =
+                      studentId;
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem<int?>(
+                    value: null,
+                    child: Row(
+                      children: [
+                        Icon(
+                          selectedStudentId == null
+                              ? Icons.check
+                              : Icons.check_box_outline_blank,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text('Todos los estudiantes'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  ...students.map(
+                    (student) => PopupMenuItem<int?>(
+                      value: student.id,
+                      child: Row(
+                        children: [
+                          Icon(
+                            selectedStudentId == student.id
+                                ? Icons.check
+                                : Icons.check_box_outline_blank,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(student.name),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (error, stackTrace) => const SizedBox.shrink(),
+          ),
         ],
       ),
       body: evidencesAsync.when(
@@ -104,9 +163,7 @@ class GalleryScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    selectedSubjectId == null
-                        ? 'No hay evidencias'
-                        : 'No hay evidencias para esta asignatura',
+                    _getEmptyStateMessage(selectedSubjectId, selectedStudentId),
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -151,10 +208,13 @@ class GalleryScreen extends ConsumerWidget {
                   evidence: evidence,
                   subject: subject,
                   onTap: () {
-                    // Navigate to evidence detail
+                    // Navigate to evidence detail with all evidences for swipe navigation
                     Navigator.of(context).pushNamed(
                       '/evidence-detail',
-                      arguments: {'evidenceId': evidence.id},
+                      arguments: {
+                        'evidences': evidences,
+                        'initialIndex': index,
+                      },
                     );
                   },
                 );
@@ -198,5 +258,17 @@ class GalleryScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _getEmptyStateMessage(int? subjectId, int? studentId) {
+    if (subjectId != null && studentId != null) {
+      return 'No hay evidencias para este estudiante y asignatura';
+    } else if (subjectId != null) {
+      return 'No hay evidencias para esta asignatura';
+    } else if (studentId != null) {
+      return 'No hay evidencias para este estudiante';
+    } else {
+      return 'No hay evidencias';
+    }
   }
 }

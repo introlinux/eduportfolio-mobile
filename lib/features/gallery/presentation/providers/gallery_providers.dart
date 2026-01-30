@@ -42,25 +42,41 @@ final getEvidenceByIdUseCaseProvider =
 // ============================================================================
 
 /// Provider for selected subject filter (null = show all)
-final selectedSubjectFilterProvider = StateProvider<int?>((ref) => null);
+/// Auto-disposes when not in use (resets filter when leaving gallery)
+final selectedSubjectFilterProvider = StateProvider.autoDispose<int?>((ref) => null);
+
+/// Provider for selected student filter (null = show all)
+/// Auto-disposes when not in use (resets filter when leaving gallery)
+final selectedStudentFilterProvider = StateProvider.autoDispose<int?>((ref) => null);
 
 // ============================================================================
 // DATA PROVIDERS
 // ============================================================================
 
-/// Provider to get evidences with optional subject filter
-final filteredEvidencesProvider = FutureProvider<List<Evidence>>((ref) async {
+/// Provider to get evidences with optional subject and student filters
+/// Ordered by capture date (most recent first)
+final filteredEvidencesProvider = FutureProvider.autoDispose<List<Evidence>>((ref) async {
   final selectedSubjectId = ref.watch(selectedSubjectFilterProvider);
+  final selectedStudentId = ref.watch(selectedStudentFilterProvider);
 
-  if (selectedSubjectId == null) {
-    // No filter, get all evidences
-    final getAllUseCase = ref.watch(getAllEvidencesUseCaseProvider);
-    return getAllUseCase();
-  } else {
-    // Filter by subject
-    final getBySubjectUseCase = ref.watch(getEvidencesBySubjectUseCaseProvider);
-    return getBySubjectUseCase(selectedSubjectId);
+  // Get all evidences first
+  final getAllUseCase = ref.watch(getAllEvidencesUseCaseProvider);
+  var evidences = await getAllUseCase();
+
+  // Apply subject filter if selected
+  if (selectedSubjectId != null) {
+    evidences = evidences.where((e) => e.subjectId == selectedSubjectId).toList();
   }
+
+  // Apply student filter if selected
+  if (selectedStudentId != null) {
+    evidences = evidences.where((e) => e.studentId == selectedStudentId).toList();
+  }
+
+  // Sort by capture date (most recent first)
+  evidences.sort((a, b) => b.captureDate.compareTo(a.captureDate));
+
+  return evidences;
 });
 
 /// Provider to get a single evidence by ID

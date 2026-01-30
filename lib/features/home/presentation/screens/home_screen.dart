@@ -64,9 +64,9 @@ class HomeScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              Navigator.of(context).pushNamed('/courses');
+              Navigator.of(context).pushNamed('/config');
             },
-            tooltip: 'Gestión de cursos',
+            tooltip: 'Configuración',
           ),
         ],
       ),

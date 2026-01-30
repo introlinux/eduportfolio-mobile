@@ -60,7 +60,9 @@ class SaveEvidenceUseCase {
       createdAt: now,
       studentId: studentId,
       fileSize: fileSize,
-      isReviewed: false, // Needs review initially
+      // TODO: When real face recognition is implemented, mark as reviewed if studentId != null
+      // For now, always mark as not reviewed since face recognition is in placeholder mode
+      isReviewed: false,
     );
 
     // Save to database and return the ID

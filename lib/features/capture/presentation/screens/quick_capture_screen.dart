@@ -315,14 +315,14 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   }
 
   Widget _buildCameraPreview() {
-    return SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: _cameraController!.value.previewSize!.height,
-          height: _cameraController!.value.previewSize!.width,
-          child: CameraPreview(_cameraController!),
-        ),
+    // Get the aspect ratio of the camera preview
+    final size = _cameraController!.value.previewSize!;
+    final deviceRatio = size.width / size.height;
+
+    return Center(
+      child: AspectRatio(
+        aspectRatio: deviceRatio,
+        child: CameraPreview(_cameraController!),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -12,6 +13,7 @@ class EvidencePreviewDialog extends StatefulWidget {
   final List<Evidence> allEvidences;
   final int initialIndex;
   final List<Student> students;
+  final List<Subject> subjects;
   final Function(int evidenceId, int studentId) onAssign;
   final Function(int evidenceId) onDelete;
 
@@ -19,6 +21,7 @@ class EvidencePreviewDialog extends StatefulWidget {
     required this.allEvidences,
     required this.initialIndex,
     required this.students,
+    required this.subjects,
     required this.onAssign,
     required this.onDelete,
     super.key,
@@ -40,6 +43,16 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
   }
 
   Evidence get _currentEvidence => widget.allEvidences[_currentIndex];
+
+  Subject? get _currentSubject {
+    try {
+      return widget.subjects.firstWhere(
+        (s) => s.id == _currentEvidence.subjectId,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
 
   bool get _hasPrevious => _currentIndex > 0;
   bool get _hasNext => _currentIndex < widget.allEvidences.length - 1;
@@ -123,7 +136,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_currentEvidence.subject?.name ?? 'Sin asignatura'} - ${DateFormat('dd/MM/yyyy HH:mm').format(_currentEvidence.captureDate)}',
+              '${_currentSubject?.name ?? 'Sin asignatura'} - ${DateFormat('dd/MM/yyyy HH:mm').format(_currentEvidence.captureDate)}',
             ),
             const SizedBox(height: 16),
             const Text(
@@ -361,7 +374,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _currentEvidence.subject?.name ?? 'Sin asignatura',
+                _currentSubject?.name ?? 'Sin asignatura',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
