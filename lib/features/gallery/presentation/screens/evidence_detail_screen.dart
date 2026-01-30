@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
+import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
@@ -110,27 +111,36 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
 
           return Column(
             children: [
-              // Image with zoom/pan (pinch to zoom, drag to pan)
+              // Image with zoom/pan (pinch to zoom, drag to pan when zoomed)
               Expanded(
-                child: Center(
-                  child: InteractiveViewer(
-                    minScale: 0.5,
-                    maxScale: 8.0, // High zoom for reading small text
-                    panEnabled: true,
-                    scaleEnabled: true,
-                    // constrained: true (default) - fits image to screen initially
-                    child: Image.file(
-                      File(evidence.filePath),
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
-                          Icons.broken_image,
-                          size: 64,
-                          color: Colors.white,
-                        );
-                      },
-                    ),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return InteractiveViewer(
+                      minScale: 1.0, // Cannot zoom out below initial fit
+                      maxScale: 8.0, // High zoom for reading small text
+                      panEnabled: false, // Disable initial pan, auto-enables when zoomed
+                      scaleEnabled: true,
+                      constrained: false, // Allow child to expand beyond initial bounds on zoom
+                      boundaryMargin: const EdgeInsets.all(double.infinity), // No pan boundaries
+                      child: Center(
+                        child: SizedBox(
+                          width: constraints.maxWidth,
+                          height: constraints.maxHeight,
+                          child: Image.file(
+                            File(evidence.filePath),
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.broken_image,
+                                size: 64,
+                                color: Colors.white,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               // Metadata section (collapsible with animation)
@@ -151,40 +161,79 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Student (if assigned)
-                    if (student != null) ...[
-                      Text(
-                        'Estudiante',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                    // Subject dropdown (editable)
+                    Text(
+                      'Asignatura',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        student.name,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+                    ),
+                    const SizedBox(height: 4),
+                    subjectsAsync.when(
+                      data: (subjects) => DropdownButtonFormField<int>(
+                        value: evidence.subjectId,
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(),
                         ),
+                        items: subjects.map((s) {
+                          return DropdownMenuItem<int>(
+                            value: s.id,
+                            child: Text(s.name),
+                          );
+                        }).toList(),
+                        onChanged: (newSubjectId) async {
+                          if (newSubjectId != null) {
+                            await _updateSubject(newSubjectId, ref);
+                          }
+                        },
                       ),
-                      const SizedBox(height: 12),
-                    ],
-                    // Subject
-                    if (subject != null) ...[
-                      Text(
-                        'Asignatura',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      loading: () => const CircularProgressIndicator(),
+                      error: (_, __) => const Text('Error cargando asignaturas'),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Student dropdown (editable)
+                    Text(
+                      'Estudiante',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    studentsAsync.when(
+                      data: (students) => DropdownButtonFormField<int?>(
+                        value: evidence.studentId,
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(),
                         ),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Sin asignar'),
+                          ),
+                          ...students.map((s) {
+                            return DropdownMenuItem<int?>(
+                              value: s.id,
+                              child: Text(s.name),
+                            );
+                          }),
+                        ],
+                        onChanged: (newStudentId) async {
+                          await _updateStudent(newStudentId, ref);
+                        },
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subject.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                      loading: () => const CircularProgressIndicator(),
+                      error: (_, __) => const Text('Error cargando estudiantes'),
+                    ),
+                    const SizedBox(height: 16),
                     // Capture date
                     Row(
                       children: [
@@ -253,6 +302,95 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _updateSubject(int newSubjectId, WidgetRef ref) async {
+    try {
+      final updatedEvidence = _currentEvidence.copyWith(subjectId: newSubjectId);
+      final repository = ref.read(evidenceRepositoryProvider);
+      await repository.updateEvidence(updatedEvidence);
+
+      // Refresh providers
+      ref.invalidate(filteredEvidencesProvider);
+      ref.invalidate(pendingEvidencesCountProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Asignatura actualizada'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateStudent(int? newStudentId, WidgetRef ref) async {
+    try {
+      final repository = ref.read(evidenceRepositoryProvider);
+
+      if (newStudentId != null) {
+        // Assign to student (also updates isReviewed automatically)
+        await repository.assignEvidenceToStudent(
+          _currentEvidence.id!,
+          newStudentId,
+        );
+      } else {
+        // Unassign (set to null) - create new instance with explicit null
+        final updatedEvidence = Evidence(
+          id: _currentEvidence.id,
+          studentId: null, // Explicitly set to null
+          subjectId: _currentEvidence.subjectId,
+          type: _currentEvidence.type,
+          filePath: _currentEvidence.filePath,
+          thumbnailPath: _currentEvidence.thumbnailPath,
+          fileSize: _currentEvidence.fileSize,
+          duration: _currentEvidence.duration,
+          captureDate: _currentEvidence.captureDate,
+          isReviewed: false, // Unassigned means not reviewed
+          notes: _currentEvidence.notes,
+          createdAt: _currentEvidence.createdAt,
+        );
+        await repository.updateEvidence(updatedEvidence);
+      }
+
+      // Refresh providers
+      ref.invalidate(filteredEvidencesProvider);
+      ref.invalidate(pendingEvidencesCountProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              newStudentId != null
+                  ? 'Estudiante asignado'
+                  : 'Estudiante desasignado',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _showDeleteConfirmation(

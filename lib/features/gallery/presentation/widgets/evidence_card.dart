@@ -10,11 +10,17 @@ class EvidenceCard extends StatelessWidget {
   final Evidence evidence;
   final Subject? subject;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final bool isSelected;
+  final bool isSelectionMode;
 
   const EvidenceCard({
     required this.evidence,
     this.subject,
     this.onTap,
+    this.onLongPress,
+    this.isSelected = false,
+    this.isSelectionMode = false,
     super.key,
   });
 
@@ -27,9 +33,12 @@ class EvidenceCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        onLongPress: onLongPress,
+        child: Stack(
           children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             // Image thumbnail
             Expanded(
               child: Stack(
@@ -148,6 +157,52 @@ class EvidenceCard extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+            // Selection overlay
+            if (isSelectionMode)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                        : Colors.transparent,
+                    border: isSelected
+                        ? Border.all(
+                            color: theme.colorScheme.primary,
+                            width: 3,
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+            // Selection checkbox
+            if (isSelectionMode)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    isSelected
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    size: 28,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

@@ -1,4 +1,6 @@
 import 'package:eduportfolio/features/courses/presentation/widgets/active_course_indicator.dart';
+import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
+import 'package:eduportfolio/features/gallery/presentation/screens/gallery_screen.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/home/presentation/widgets/pending_badge.dart';
 import 'package:eduportfolio/features/home/presentation/widgets/storage_indicator.dart';
@@ -28,7 +30,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Eduportfolio'),
         actions: [
-          // Pending badge (tappable - navigates to review screen)
+          // Pending badge (tappable - navigates to gallery with pending filter)
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -36,7 +38,13 @@ class HomeScreen extends ConsumerWidget {
                 data: (count) => PendingBadge(
                   count: count,
                   onTap: () {
-                    Navigator.of(context).pushNamed('/review');
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const GalleryScreen(
+                          initialReviewFilter: ReviewStatusFilter.pending,
+                        ),
+                      ),
+                    );
                   },
                 ),
                 loading: () => const SizedBox.shrink(),

@@ -1,10 +1,24 @@
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
+import 'package:eduportfolio/features/gallery/domain/usecases/assign_evidences_to_student_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/delete_evidence_usecase.dart';
+import 'package:eduportfolio/features/gallery/domain/usecases/delete_evidences_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/get_all_evidences_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/get_evidence_by_id_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/get_evidences_by_subject_usecase.dart';
+import 'package:eduportfolio/features/gallery/domain/usecases/update_evidences_subject_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Review status filter options for gallery
+enum ReviewStatusFilter {
+  all, // Show all evidences
+  pending, // Show only pending review (isReviewed = false)
+  reviewed, // Show only reviewed (isReviewed = true)
+}
 
 // ============================================================================
 // USECASE PROVIDERS
@@ -37,6 +51,26 @@ final getEvidenceByIdUseCaseProvider =
   return GetEvidenceByIdUseCase(repository);
 });
 
+/// Provider for UpdateEvidencesSubjectUseCase
+final updateEvidencesSubjectUseCaseProvider =
+    Provider<UpdateEvidencesSubjectUseCase>((ref) {
+  final repository = ref.watch(evidenceRepositoryProvider);
+  return UpdateEvidencesSubjectUseCase(repository);
+});
+
+/// Provider for AssignEvidencesToStudentUseCase
+final assignEvidencesToStudentUseCaseProvider =
+    Provider<AssignEvidencesToStudentUseCase>((ref) {
+  final repository = ref.watch(evidenceRepositoryProvider);
+  return AssignEvidencesToStudentUseCase(repository);
+});
+
+/// Provider for DeleteEvidencesUseCase (batch delete)
+final deleteEvidencesUseCaseProvider = Provider<DeleteEvidencesUseCase>((ref) {
+  final repository = ref.watch(evidenceRepositoryProvider);
+  return DeleteEvidencesUseCase(repository);
+});
+
 // ============================================================================
 // STATE PROVIDERS
 // ============================================================================
@@ -49,15 +83,22 @@ final selectedSubjectFilterProvider = StateProvider.autoDispose<int?>((ref) => n
 /// Auto-disposes when not in use (resets filter when leaving gallery)
 final selectedStudentFilterProvider = StateProvider.autoDispose<int?>((ref) => null);
 
+/// Provider for review status filter (defaults to all)
+/// Auto-disposes when not in use (resets filter when leaving gallery)
+final reviewStatusFilterProvider = StateProvider.autoDispose<ReviewStatusFilter>(
+  (ref) => ReviewStatusFilter.all,
+);
+
 // ============================================================================
 // DATA PROVIDERS
 // ============================================================================
 
-/// Provider to get evidences with optional subject and student filters
+/// Provider to get evidences with optional subject, student, and review status filters
 /// Ordered by capture date (most recent first)
 final filteredEvidencesProvider = FutureProvider.autoDispose<List<Evidence>>((ref) async {
   final selectedSubjectId = ref.watch(selectedSubjectFilterProvider);
   final selectedStudentId = ref.watch(selectedStudentFilterProvider);
+  final reviewStatusFilter = ref.watch(reviewStatusFilterProvider);
 
   // Get all evidences first
   final getAllUseCase = ref.watch(getAllEvidencesUseCaseProvider);
@@ -71,6 +112,19 @@ final filteredEvidencesProvider = FutureProvider.autoDispose<List<Evidence>>((re
   // Apply student filter if selected
   if (selectedStudentId != null) {
     evidences = evidences.where((e) => e.studentId == selectedStudentId).toList();
+  }
+
+  // Apply review status filter
+  switch (reviewStatusFilter) {
+    case ReviewStatusFilter.pending:
+      evidences = evidences.where((e) => !e.isReviewed).toList();
+      break;
+    case ReviewStatusFilter.reviewed:
+      evidences = evidences.where((e) => e.isReviewed).toList();
+      break;
+    case ReviewStatusFilter.all:
+      // No filtering needed
+      break;
   }
 
   // Sort by capture date (most recent first)

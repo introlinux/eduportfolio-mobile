@@ -218,12 +218,27 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
           // Main content
           Column(
             children: [
-              // Image/Video preview
+              // Image/Video preview with zoom support
               Expanded(
-                child: Center(
-                  child: InteractiveViewer(
-                    child: _buildPreview(),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return InteractiveViewer(
+                      key: ValueKey(_currentIndex), // Reset zoom when changing image
+                      minScale: 1.0, // Cannot zoom out below initial fit
+                      maxScale: 8.0, // High zoom for reading small text/documents
+                      panEnabled: false, // Disable initial pan, auto-enables when zoomed
+                      scaleEnabled: true,
+                      constrained: false, // Allow child to expand beyond initial bounds on zoom
+                      boundaryMargin: const EdgeInsets.all(double.infinity), // No pan boundaries
+                      child: Center(
+                        child: SizedBox(
+                          width: constraints.maxWidth,
+                          height: constraints.maxHeight,
+                          child: _buildPreview(),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
 
@@ -320,9 +335,10 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
 
   Widget _buildPreview() {
     if (_currentEvidence.type == EvidenceType.image) {
+      // Image with proper fit for zoom expansion
       return Image.file(
         File(_currentEvidence.filePath),
-        fit: BoxFit.contain,
+        fit: BoxFit.contain, // Fits image initially, allows expansion on zoom
         errorBuilder: (context, error, stackTrace) {
           return const Center(
             child: Icon(
