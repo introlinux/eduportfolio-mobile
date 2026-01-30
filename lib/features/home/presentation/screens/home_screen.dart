@@ -30,28 +30,6 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Eduportfolio'),
         actions: [
-          // Pending badge (tappable - navigates to gallery with pending filter)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: pendingCountAsync.when(
-                data: (count) => PendingBadge(
-                  count: count,
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const GalleryScreen(
-                          initialReviewFilter: ReviewStatusFilter.pending,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                loading: () => const SizedBox.shrink(),
-                error: (error, stackTrace) => const SizedBox.shrink(),
-              ),
-            ),
-          ),
           // Students button
           IconButton(
             icon: const Icon(Icons.people),
@@ -85,16 +63,34 @@ class HomeScreen extends ConsumerWidget {
             padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: ActiveCourseIndicator(),
           ),
-          // Storage indicator
+          // Storage and pending indicators
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: storageInfoAsync.when(
-              data: (info) => Align(
-                alignment: Alignment.centerLeft,
-                child: StorageIndicator(info: info),
-              ),
-              loading: () => const SizedBox.shrink(),
-              error: (error, stackTrace) => const SizedBox.shrink(),
+            child: Row(
+              children: [
+                storageInfoAsync.when(
+                  data: (info) => StorageIndicator(info: info),
+                  loading: () => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
+                ),
+                const SizedBox(width: 8),
+                pendingCountAsync.when(
+                  data: (count) => PendingBadge(
+                    count: count,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const GalleryScreen(
+                            initialReviewFilter: ReviewStatusFilter.pending,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
           // Subjects grid
