@@ -3,12 +3,12 @@ import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart'
     as gallery;
-import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/review/presentation/providers/review_providers.dart';
 import 'package:eduportfolio/features/review/presentation/widgets/batch_action_bar.dart';
 import 'package:eduportfolio/features/review/presentation/widgets/evidence_preview_dialog.dart';
 import 'package:eduportfolio/features/review/presentation/widgets/evidence_review_card.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
+import 'package:eduportfolio/features/subjects/presentation/providers/subject_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,7 +24,7 @@ class ReviewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final unassignedAsync = ref.watch(unassignedEvidencesProvider);
-    final subjectsAsync = ref.watch(defaultSubjectsProvider);
+    final subjectsAsync = ref.watch(allSubjectsProvider);
     final selectionMode = ref.watch(selectionModeProvider);
     final selectedEvidences = ref.watch(selectedEvidencesProvider);
 
@@ -285,7 +285,7 @@ class ReviewScreen extends ConsumerWidget {
       return;
     }
 
-    final subjects = await ref.read(defaultSubjectsProvider.future);
+    final subjects = await ref.read(allSubjectsProvider.future);
 
     if (!context.mounted) return;
 

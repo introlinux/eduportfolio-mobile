@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
-import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
+import 'package:eduportfolio/features/subjects/presentation/providers/subject_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -144,7 +144,7 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subjectsAsync = ref.watch(defaultSubjectsProvider);
+    final subjectsAsync = ref.watch(allSubjectsProvider);
     final studentsAsync = ref.watch(filteredStudentsProvider);
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 

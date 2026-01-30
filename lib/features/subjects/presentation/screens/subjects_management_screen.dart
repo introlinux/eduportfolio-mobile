@@ -338,7 +338,7 @@ class _SubjectListTile extends ConsumerWidget {
         content: Text(
           '¿Estás seguro de que quieres eliminar "${subject.name}"?\n\n'
           'Si hay evidencias asociadas:\n'
-          '• Se moverán a "Sin Asignación"\n'
+          '• Se moverán a "Sin asignar"\n'
           '• Se marcarán como pendientes de revisar\n'
           '• Las evidencias NO se eliminarán\n\n'
           'Podrás reasignarlas más tarde desde la pantalla de revisión.',

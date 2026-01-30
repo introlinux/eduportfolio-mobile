@@ -97,20 +97,20 @@ class SubjectLocalDataSource {
     final count = Sqflite.firstIntValue(evidencesCount) ?? 0;
 
     if (count > 0) {
-      // Find or create the "Sin Asignación" subject
+      // Find or create the "Sin asignar" subject
       final unassignedSubjects = await db.query(
         'subjects',
         where: 'name = ?',
-        whereArgs: ['Sin Asignación'],
+        whereArgs: ['Sin asignar'],
         limit: 1,
       );
 
       int unassignedSubjectId;
 
       if (unassignedSubjects.isEmpty) {
-        // Create the "Sin Asignación" subject
+        // Create the "Sin asignar" subject
         unassignedSubjectId = await db.insert('subjects', {
-          'name': 'Sin Asignación',
+          'name': 'Sin asignar',
           'color': '0xFF9E9E9E', // Grey color
           'icon': 'help_outline',
           'is_default': 0,
@@ -120,7 +120,7 @@ class SubjectLocalDataSource {
         unassignedSubjectId = unassignedSubjects.first['id'] as int;
       }
 
-      // Reassign all evidences to "Sin Asignación"
+      // Reassign all evidences to "Sin asignar"
       await db.update(
         'evidences',
         {'subject_id': unassignedSubjectId, 'is_reviewed': 0}, // Mark as not reviewed
