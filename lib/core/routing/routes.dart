@@ -14,6 +14,7 @@ import 'package:eduportfolio/features/students/presentation/screens/face_trainin
 import 'package:eduportfolio/features/students/presentation/screens/student_detail_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/student_form_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/students_screen.dart';
+import 'package:eduportfolio/features/subjects/presentation/screens/subjects_management_screen.dart';
 import 'package:flutter/material.dart';
 
 /// App routes configuration
@@ -34,6 +35,7 @@ class AppRoutes {
   static const String courseForm = '/course-form';
   static const String review = '/review';
   static const String config = '/config';
+  static const String subjectsManagement = '/subjects-management';
 
   /// Generate routes for the app
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -187,6 +189,12 @@ class AppRoutes {
       case config:
         return MaterialPageRoute<void>(
           builder: (_) => const SettingsScreen(),
+          settings: settings,
+        );
+
+      case subjectsManagement:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SubjectsManagementScreen(),
           settings: settings,
         );
 

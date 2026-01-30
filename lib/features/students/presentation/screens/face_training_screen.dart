@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
+import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,10 +92,14 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       // Use current camera index
       final camera = _availableCameras[_currentCameraIndex];
 
+      // Get configured resolution preset
+      final settingsService = ref.read(appSettingsServiceProvider);
+      final resolutionPreset = await settingsService.getResolutionPreset();
+
       // Initialize camera controller
       _cameraController = CameraController(
         camera,
-        ResolutionPreset.medium,
+        resolutionPreset,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );

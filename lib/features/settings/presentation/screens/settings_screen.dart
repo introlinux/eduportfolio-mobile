@@ -24,6 +24,37 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
+          // Management Section
+          _buildSectionHeader(
+            context,
+            'Gestión',
+            Icons.settings,
+          ),
+          ListTile(
+            leading: Icon(
+              Icons.book,
+              color: theme.colorScheme.primary,
+            ),
+            title: const Text('Gestión de Asignaturas'),
+            subtitle: const Text('Administrar asignaturas del centro'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).pushNamed('/subjects-management');
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(
+              Icons.photo_camera,
+              color: theme.colorScheme.primary,
+            ),
+            title: const Text('Resolución de Imágenes'),
+            subtitle: const Text('Configurar calidad de captura'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showImageResolutionDialog(context, ref),
+          ),
+          const Divider(height: 32),
+
           // System Cleanup Section
           _buildSectionHeader(
             context,
@@ -330,5 +361,148 @@ class SettingsScreen extends ConsumerWidget {
         );
       }
     }
+  }
+
+  Future<void> _showImageResolutionDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final settingsService = ref.read(appSettingsServiceProvider);
+    final currentResolution = await settingsService.getImageResolution();
+
+    if (!context.mounted) return;
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Resolución de Imágenes'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Selecciona la resolución máxima para las imágenes capturadas:',
+            ),
+            const SizedBox(height: 16),
+            _buildResolutionOption(
+              context,
+              resolution: 1080,
+              label: 'Full HD (1080p)',
+              description: 'Buena calidad, archivos pequeños',
+              currentResolution: currentResolution,
+            ),
+            _buildResolutionOption(
+              context,
+              resolution: 1440,
+              label: '2K (1440p)',
+              description: 'Muy buena calidad, archivos medianos',
+              currentResolution: currentResolution,
+            ),
+            _buildResolutionOption(
+              context,
+              resolution: 2160,
+              label: '4K (2160p)',
+              description: 'Máxima calidad, archivos grandes',
+              currentResolution: currentResolution,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Mayor resolución mejora la calidad en condiciones de baja iluminación, pero aumenta el tamaño de los archivos.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      await settingsService.setImageResolution(result);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Resolución establecida a ${result}p'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildResolutionOption(
+    BuildContext context, {
+    required int resolution,
+    required String label,
+    required String description,
+    required int currentResolution,
+  }) {
+    final theme = Theme.of(context);
+    final isSelected = resolution == currentResolution;
+
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(resolution),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(
+                  color: theme.colorScheme.primary,
+                  width: 2,
+                )
+              : null,
+        ),
+        child: Row(
+          children: [
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: theme.colorScheme.primary,
+              )
+            else
+              Icon(
+                Icons.circle_outlined,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: isSelected
+                          ? theme.colorScheme.onPrimaryContainer
+                          : null,
+                      fontWeight: isSelected ? FontWeight.bold : null,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isSelected
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
