@@ -48,6 +48,7 @@ class _SubjectFormDialogState extends State<SubjectFormDialog> {
     {'name': 'Tecnología', 'icon': Icons.computer},
     {'name': 'Escritura', 'icon': Icons.edit},
     {'name': 'Lectura', 'icon': Icons.menu_book},
+    {'name': 'Sin Asignar', 'icon': Icons.help_outline},
   ];
 
   @override
@@ -84,6 +85,7 @@ class _SubjectFormDialogState extends State<SubjectFormDialog> {
       'computer': Icons.computer,
       'edit': Icons.edit,
       'menu_book': Icons.menu_book,
+      'help_outline': Icons.help_outline,
     };
     return iconMap[iconString] ?? Icons.book;
   }
@@ -103,6 +105,7 @@ class _SubjectFormDialogState extends State<SubjectFormDialog> {
       Icons.computer.codePoint: 'computer',
       Icons.edit.codePoint: 'edit',
       Icons.menu_book.codePoint: 'menu_book',
+      Icons.help_outline.codePoint: 'help_outline',
     };
     return reverseMap[icon.codePoint] ?? 'book';
   }

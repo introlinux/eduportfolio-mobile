@@ -84,8 +84,8 @@ class SubjectLocalDataSource {
   }
 
   /// Delete subject
-  /// If the subject has evidences, they will be reassigned to the first default subject
-  /// If no default subject exists, the deletion will fail
+  /// If the subject has evidences, they will be reassigned to "Sin Asignación" subject
+  /// and marked as pending review
   Future<int> deleteSubject(int id) async {
     final db = await _databaseHelper.database;
 
@@ -97,26 +97,33 @@ class SubjectLocalDataSource {
     final count = Sqflite.firstIntValue(evidencesCount) ?? 0;
 
     if (count > 0) {
-      // Find the first default subject (excluding the one being deleted)
-      final defaultSubjects = await db.query(
+      // Find or create the "Sin Asignación" subject
+      final unassignedSubjects = await db.query(
         'subjects',
-        where: 'is_default = ? AND id != ?',
-        whereArgs: [1, id],
+        where: 'name = ?',
+        whereArgs: ['Sin Asignación'],
         limit: 1,
       );
 
-      if (defaultSubjects.isEmpty) {
-        throw Exception(
-          'Cannot delete subject: $count evidences are using this subject and no other default subject exists to reassign them.',
-        );
+      int unassignedSubjectId;
+
+      if (unassignedSubjects.isEmpty) {
+        // Create the "Sin Asignación" subject
+        unassignedSubjectId = await db.insert('subjects', {
+          'name': 'Sin Asignación',
+          'color': '0xFF9E9E9E', // Grey color
+          'icon': 'help_outline',
+          'is_default': 0,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } else {
+        unassignedSubjectId = unassignedSubjects.first['id'] as int;
       }
 
-      final defaultSubjectId = defaultSubjects.first['id'] as int;
-
-      // Reassign all evidences to the first default subject
+      // Reassign all evidences to "Sin Asignación"
       await db.update(
         'evidences',
-        {'subject_id': defaultSubjectId, 'is_reviewed': 0}, // Mark as not reviewed
+        {'subject_id': unassignedSubjectId, 'is_reviewed': 0}, // Mark as not reviewed
         where: 'subject_id = ?',
         whereArgs: [id],
       );

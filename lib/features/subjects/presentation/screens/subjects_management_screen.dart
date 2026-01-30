@@ -206,6 +206,7 @@ class _SubjectListTile extends ConsumerWidget {
       'computer': Icons.computer,
       'edit': Icons.edit,
       'menu_book': Icons.menu_book,
+      'help_outline': Icons.help_outline,
     };
     return iconMap[iconString] ?? _getDefaultIcon();
   }
@@ -337,9 +338,10 @@ class _SubjectListTile extends ConsumerWidget {
         content: Text(
           '¿Estás seguro de que quieres eliminar "${subject.name}"?\n\n'
           'Si hay evidencias asociadas:\n'
-          '• Se reasignarán a la primera asignatura predeterminada\n'
+          '• Se moverán a "Sin Asignación"\n'
           '• Se marcarán como pendientes de revisar\n'
-          '• Las evidencias NO se eliminarán',
+          '• Las evidencias NO se eliminarán\n\n'
+          'Podrás reasignarlas más tarde desde la pantalla de revisión.',
         ),
         actions: [
           TextButton(

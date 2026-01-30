@@ -37,6 +37,7 @@ class SubjectCard extends StatelessWidget {
       'computer': Icons.computer,
       'edit': Icons.edit,
       'menu_book': Icons.menu_book,
+      'help_outline': Icons.help_outline,
     };
     return iconMap[iconString] ?? _getSubjectIcon(subject.name);
   }
