@@ -267,6 +267,7 @@ class _SubjectFormDialogState extends State<SubjectFormDialog> {
               color: _selectedColor,
               icon: _selectedIcon,
               isDefault: _isDefault,
+              createdAt: widget.subject?.createdAt ?? DateTime.now(),
             );
 
             Navigator.of(context).pop(subject);
