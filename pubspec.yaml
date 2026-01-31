@@ -81,6 +81,9 @@ dev_dependencies:
   mockito: ^5.4.4
   build_runner: ^2.4.13
   path_provider_platform_interface: ^2.1.2
+  sqflite_common_ffi: ^2.3.0  # Para tests de SQLite sin dispositivo
+  integration_test:           # Para tests E2E (fases futuras)
+    sdk: flutter
 
   # Code generation
   json_serializable: ^6.9.2
