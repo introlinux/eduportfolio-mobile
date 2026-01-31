@@ -1,13 +1,24 @@
 # Plan de Testing - EduPortfolio Mobile
 
 > **Última actualización**: 2026-01-31
-> **Estado actual**: Fase 1 completada (100%)
+> **Estado actual**: Fase 1 completada (100%), Fase 2.1 completada (100%)
 
 ## 📋 Resumen Ejecutivo
 
 Plan completo de testing enfocado en **tests unitarios** para prevenir regresiones en todas las áreas críticas de la aplicación. El objetivo es alcanzar >85% de cobertura en datasources, repositories y use cases.
 
-**Progreso total**: 297 tests implementados (296 passing, 1 skipped)
+**Progreso total**: 390 tests implementados (389 passing, 1 skipped)
+- **Fase 1** (Fundamentos): 297 tests ✅
+- **Fase 2** (Providers): 93 tests ✅
+
+### Progreso por Fase
+
+```
+FASE 1 (Fundamentos)    ████████████████████ 100% ✅ (297 tests)
+FASE 2 (Providers)      ████████████████████ 100% ✅ (93 tests)
+FASE 3 (Widgets)        ░░░░░░░░░░░░░░░░░░░░   0% ⬜ (opcional)
+FASE 4 (Integration)    ░░░░░░░░░░░░░░░░░░░░   0% ⬜ (opcional)
+```
 
 ---
 
@@ -180,12 +191,12 @@ dev_dependencies:
 
 ---
 
-## 🔄 FASE 2: Providers y Lógica de Estado (EN PROGRESO)
+## ✅ FASE 2: Providers y Lógica de Estado (COMPLETADA)
 
 **Estimación**: ~1,050 líneas, 6-7 días
-**Progreso**: 55/~1,050 tests completados
+**Progreso**: 93 tests completados ✅
 
-### Fase 2.1: Tests de Providers Críticos (EN PROGRESO)
+### Fase 2.1: Tests de Providers Críticos ✅ (93 tests)
 
 **Patrón Riverpod**:
 ```dart
@@ -228,26 +239,37 @@ test('provider returns correct data', () async {
    - `studentByIdProvider` con ID válido/inválido
    - `studentCountByCourseProvider`
 
-4. ⬜ **`test/unit/features/capture/presentation/providers/capture_providers_test.dart`** (MEDIA) (~100 líneas)
-   - StateProviders: selectedImagePath, selectedSubjectId
+4. ✅ **`test/unit/features/capture/presentation/providers/capture_providers_test.dart`** (MEDIA) (14 tests)
+   - StateProviders: selectedImagePath, selectedSubjectId, isSaving
    - Test estado de carga (isSaving)
+   - Workflow completo de captura
+   - Tests de cancelación de captura
 
-5. ⬜ **`test/unit/features/home/presentation/providers/home_providers_test.dart`** (MEDIA) (~100 líneas)
-   - Providers de estadísticas
-   - Contador de pendientes
+5. ✅ **`test/unit/features/home/presentation/providers/home_providers_test.dart`** (MEDIA) (10 tests)
+   - Providers de estadísticas (storageInfoProvider)
+   - Contador de pendientes (pendingEvidencesCountProvider)
+   - Asignaturas por defecto (defaultSubjectsProvider)
+   - Tests de formato de tamaños de almacenamiento (KB, MB, GB)
 
-6. ⬜ **Otros providers** (BAJA) (~300 líneas)
-   - course_providers_test.dart
-   - settings_providers_test.dart
-   - subject_providers_test.dart
+6. ✅ **`test/unit/features/courses/presentation/providers/course_providers_test.dart`** (BAJA) (10 tests)
+   - `activeCourseProvider`: curso activo, null, caché
+   - `allCoursesProvider`: todos los cursos, lista vacía, caché
+   - `courseStudentCountProvider`: conteo por curso, caché, múltiples IDs
 
-### Fase 2.2: Tests de Servicios Adicionales (PENDIENTE)
+7. ✅ **`test/unit/features/settings/presentation/providers/settings_providers_test.dart`** (BAJA) (5 tests)
+   - `sharedPreferencesProvider`: instancia, caché
+   - `appSettingsServiceProvider`: creación, StateError, valores default
 
-1. ⬜ **`test/unit/core/services/app_settings_service_test.dart`** (MEDIA) (~100 líneas)
-   - Mock de SharedPreferences
-   - getImageResolution() → verificar default
-   - setImageResolution() → validar valores (1080/1440/2160)
-   - getResolutionPreset() → mapping a CameraResolution
+8. ✅ **`test/unit/features/subjects/presentation/providers/subject_providers_test.dart`** (BAJA) (9 tests)
+   - `allSubjectsProvider`: todas las asignaturas, lista vacía, caché
+   - `createSubjectProvider`: crear y retornar ID, invalidar providers
+   - `updateSubjectProvider`: actualizar, invalidar providers
+   - `deleteSubjectProvider`: eliminar por ID, invalidar providers
+
+**Commits**: `52a30b7`, `22213dc`, `4427a89`
+**Líneas de código**: ~2,453 líneas
+
+**Nota**: Los tests de AppSettingsService están integrados en settings_providers_test.dart
 
 ---
 
