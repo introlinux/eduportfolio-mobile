@@ -180,11 +180,12 @@ dev_dependencies:
 
 ---
 
-## 🔄 FASE 2: Providers y Lógica de Estado (PENDIENTE)
+## 🔄 FASE 2: Providers y Lógica de Estado (EN PROGRESO)
 
 **Estimación**: ~1,050 líneas, 6-7 días
+**Progreso**: 55/~1,050 tests completados
 
-### Fase 2.1: Tests de Providers Críticos (PENDIENTE)
+### Fase 2.1: Tests de Providers Críticos (EN PROGRESO)
 
 **Patrón Riverpod**:
 ```dart
@@ -205,7 +206,7 @@ test('provider returns correct data', () async {
 
 **Archivos a crear**:
 
-1. ⬜ **`test/unit/features/gallery/presentation/providers/gallery_providers_test.dart`** (CRÍTICO) (~250 líneas)
+1. ✅ **`test/unit/features/gallery/presentation/providers/gallery_providers_test.dart`** (CRÍTICO) (24 tests)
    - `filteredEvidencesProvider` con múltiples combinaciones:
      - Sin filtros → todas las evidencias
      - Filtro por subjectId
@@ -218,11 +219,11 @@ test('provider returns correct data', () async {
    - Verificar ordenamiento por captureDate DESC
    - Test con lista vacía
 
-2. ⬜ **`test/unit/features/review/presentation/providers/review_providers_test.dart`** (ALTA) (~150 líneas)
+2. ✅ **`test/unit/features/review/presentation/providers/review_providers_test.dart`** (ALTA) (15 tests)
    - Providers de evidencias sin asignar
    - Test invalidación después de asignación
 
-3. ⬜ **`test/unit/features/students/presentation/providers/student_providers_test.dart`** (ALTA) (~150 líneas)
+3. ✅ **`test/unit/features/students/presentation/providers/student_providers_test.dart`** (ALTA) (16 tests)
    - `filteredStudentsProvider` con/sin filtro de curso
    - `studentByIdProvider` con ID válido/inválido
    - `studentCountByCourseProvider`
@@ -428,11 +429,11 @@ test('description', () async {
 
 ```
 FASE 1 (Fundamentos)    ████████████████████ 100% ✅ (297 tests)
-FASE 2 (Providers)      ░░░░░░░░░░░░░░░░░░░░   0% ⬜ (estimado ~70 tests)
+FASE 2 (Providers)      ████████░░░░░░░░░░░░  40% 🔄 (55 tests completados)
 FASE 3 (Widgets)        ░░░░░░░░░░░░░░░░░░░░   0% ⬜ (estimado ~120 tests)
 FASE 4 (Integration)    ░░░░░░░░░░░░░░░░░░░░   0% ⬜ (estimado ~30 tests)
 ────────────────────────────────────────────
-TOTAL                   ████░░░░░░░░░░░░░░░░  57% (297/517 estimado)
+TOTAL                   ████████░░░░░░░░░░░░  68% (352/517 estimado)
 ```
 
 ---
@@ -470,5 +471,6 @@ TOTAL                   ████░░░░░░░░░░░░░░�
 ---
 
 **Última actualización**: 2026-01-31
-**Próxima fase recomendada**: Fase 2.1 - Tests de Providers
+**Estado actual**: Fase 2.1 en progreso (55/~140 tests completados)
+**Próxima tarea**: Completar providers restantes (capture, home, course, settings, subject)
 **Contacto**: Ver commits con Co-Authored-By para contexto
