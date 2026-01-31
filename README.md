@@ -9,7 +9,32 @@
 
 ## 📋 Descripción General
 
-Eduportfolio es una aplicación móvil multiplataforma diseñada para digitalizar y organizar el trabajo académico de estudiantes de Educación Infantil y Primaria. La aplicación permite a los docentes capturar evidencias físicas (fotos, vídeos y audios) mediante el dispositivo móvil, identificando automáticamente al alumno mediante reconocimiento facial y clasificando el material con intervención mínima del docente.
+Eduportfolio-mobile es una aplicación móvil multiplataforma diseñada para digitalizar y organizar el trabajo académico de estudiantes de Educación Infantil y Primaria. La aplicación permite a los docentes capturar evidencias físicas (fotos, vídeos y audios) mediante el dispositivo móvil, identificando automáticamente al alumno mediante reconocimiento facial y clasificando el material con intervención mínima del docente.
+
+### Problema que Resuelve
+
+Los docentes de Educación Infantil y Primaria enfrentan el desafío de:
+- **Gestionar cientos de fichas físicas** por trimestre por alumno.
+- **Archivar manualmente** trabajos para crear portfolios de evaluación.
+- **Perder tiempo valioso** en tareas organizativas que podrían dedicarse a la enseñanza.
+- **Dificultad para compartir evidencias** con las familias de forma ágil.
+
+### Solución Propuesta
+
+Por una parte un Kiosko de Evidencias, una **estación de trabajo digital** que permite a los alumnos:
+1. Ser reconocidos automáticamente mediante **reconocimiento facial**.
+2. Mostrar sus trabajos a una cámara para su **captura y digitalización**.
+3. Ver cómo el sistema **clasifica automáticamente** el trabajo en su portfolio digital por asignatura.
+
+Y, por otra parte una aplicación móvil de recolección de evidencias por clase mientras los estudiantes están trabajando que permite:
+1. Recoger imágenes, capturas de audio y vídeo sobre el trabajo del alumnado in-situ.
+2. Clasificar las capturas creando un portfolio digital por asignatura.
+3. Mostrar los trabajos en una galería para evaluarlos o mostrarlos a las familias.
+4. Sincronizar la información que hubiera en el Kiosko de Evidencias para fusionarla con la recogida por el docente.
+
+Todo esto opera bajo un paradigma **"Local-First"** y de **"Privacidad por Diseño"**, asegurando que todos los datos (incluyendo imágenes y perfiles biométricos) se procesen y almacenen exclusivamente en el dispositivo local, **sin ninguna conexión a servidores externos o a la nube**.
+
+
 
 ### Características Principales
 
@@ -543,6 +568,7 @@ Para preguntas, sugerencias o reporte de bugs:
 - [SQLCipher](https://www.zetetic.net/sqlcipher/)
 - [Material Design 3](https://m3.material.io/)
 
+- [Presentación multimedia](https://gamma.app/docs/Eduportfolio-Digitalizacion-Autonoma-y-Privacidad-en-el-Aula-gpxrcgiuh5k5psr?mode=present#card-s19dp2a0itu7rsb)
 ---
 
 **Eduportfolio** - Digitalizando la educación, protegiendo la privacidad 🎓📱

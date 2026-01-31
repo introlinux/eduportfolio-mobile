@@ -68,7 +68,7 @@ dependencies:
 
   # Networking (for sync feature - Phase 2)
   network_info_plus: ^6.0.2
-  flutter_blue_plus: ^1.35.15
+  # flutter_reactive_ble - Se agregará en Fase 2 para sincronización Bluetooth
 
 dev_dependencies:
   flutter_test:

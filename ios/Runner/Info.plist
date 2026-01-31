@@ -54,10 +54,6 @@
 	<string>Necesario para guardar evidencias en la galería</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Necesario para guardar fotos y vídeos capturados</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Necesario para sincronizar datos con otros dispositivos mediante Bluetooth</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Necesario para sincronizar datos con otros dispositivos mediante Bluetooth</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Necesario para sincronizar datos en red local</string>
 </dict>
