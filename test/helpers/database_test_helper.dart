@@ -24,10 +24,10 @@ Future<Database> createTestDatabase() async {
           CREATE TABLE courses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            academic_year TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT,
             is_active INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL,
-            archived_at TEXT
+            created_at TEXT NOT NULL
           )
         ''');
 
@@ -44,29 +44,31 @@ Future<Database> createTestDatabase() async {
           )
         ''');
 
-        // Tabla de asignaturas por defecto
+        // Tabla de asignaturas
         await db.execute('''
           CREATE TABLE subjects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            color TEXT NOT NULL,
-            icon TEXT NOT NULL,
-            order_index INTEGER NOT NULL
+            color TEXT,
+            icon TEXT,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
           )
         ''');
 
         // Insertar asignaturas por defecto
+        final now = DateTime.now().toIso8601String();
         await db.execute('''
-          INSERT INTO subjects (name, color, icon, order_index) VALUES
-          ('Sin asignar', 'FF9E9E9E', 'help_outline', 0),
-          ('Matemáticas', 'FF2196F3', 'calculate', 1),
-          ('Lengua', 'FFF44336', 'menu_book', 2),
-          ('Ciencias', 'FF4CAF50', 'science', 3),
-          ('Inglés', 'FFFF9800', 'language', 4),
-          ('Plástica', 'FF9C27B0', 'palette', 5),
-          ('Música', 'FFFF5722', 'music_note', 6),
-          ('Educación Física', 'FF795548', 'sports_soccer', 7),
-          ('Valores', 'FF607D8B', 'favorite', 8)
+          INSERT INTO subjects (name, color, icon, is_default, created_at) VALUES
+          ('Sin asignar', 'FF9E9E9E', 'help_outline', 1, '$now'),
+          ('Matemáticas', 'FF2196F3', 'calculate', 1, '$now'),
+          ('Lengua', 'FFF44336', 'menu_book', 1, '$now'),
+          ('Ciencias', 'FF4CAF50', 'science', 1, '$now'),
+          ('Inglés', 'FFFF9800', 'language', 1, '$now'),
+          ('Plástica', 'FF9C27B0', 'palette', 1, '$now'),
+          ('Música', 'FFFF5722', 'music_note', 1, '$now'),
+          ('Educación Física', 'FF795548', 'sports_soccer', 1, '$now'),
+          ('Valores', 'FF607D8B', 'favorite', 1, '$now')
         ''');
 
         // Tabla de evidencias
@@ -109,12 +111,14 @@ class TestDataHelper {
   /// Inserta un curso de prueba y retorna su ID
   Future<int> insertTestCourse({
     String name = 'Test Course',
-    String academicYear = '2023-2024',
+    DateTime? startDate,
+    DateTime? endDate,
     bool isActive = true,
   }) async {
     return await db.insert('courses', {
       'name': name,
-      'academic_year': academicYear,
+      'start_date': (startDate ?? DateTime.now()).toIso8601String(),
+      if (endDate != null) 'end_date': endDate.toIso8601String(),
       'is_active': isActive ? 1 : 0,
       'created_at': DateTime.now().toIso8601String(),
     });
@@ -135,6 +139,22 @@ class TestDataHelper {
           : null,
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
+    });
+  }
+
+  /// Inserta una asignatura de prueba y retorna su ID
+  Future<int> insertTestSubject({
+    String name = 'Test Subject',
+    String? color,
+    String? icon,
+    bool isDefault = false,
+  }) async {
+    return await db.insert('subjects', {
+      'name': name,
+      if (color != null) 'color': color,
+      if (icon != null) 'icon': icon,
+      'is_default': isDefault ? 1 : 0,
+      'created_at': DateTime.now().toIso8601String(),
     });
   }
 

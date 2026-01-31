@@ -97,11 +97,9 @@ void main() {
       // Arrange - crear dos cursos
       final course1Id = await testDataHelper.insertTestCourse(
         name: 'Course 1',
-        academicYear: '2023-2024',
       );
       final course2Id = await testDataHelper.insertTestCourse(
         name: 'Course 2',
-        academicYear: '2023-2024',
       );
 
       // Estudiantes del curso 1
