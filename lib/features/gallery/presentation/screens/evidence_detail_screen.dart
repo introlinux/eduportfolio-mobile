@@ -34,6 +34,9 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   late int _currentIndex;
   bool _showMetadata = false; // Metadata hidden by default for max image space
 
+  // Local cache of updated evidences to reflect changes immediately
+  final Map<int, Evidence> _updatedEvidences = {};
+
   // Transformation controller for each image to track zoom state
   final Map<int, TransformationController> _transformControllers = {};
   bool _wasZoomed = false; // Track previous zoom state to avoid unnecessary rebuilds
@@ -48,6 +51,10 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+
+    // Auto-expand metadata panel if current evidence needs review
+    final initialEvidence = widget.evidences[widget.initialIndex];
+    _showMetadata = initialEvidence.needsReview;
 
     // Initialize transformation controllers for all evidences
     for (int i = 0; i < widget.evidences.length; i++) {
@@ -140,7 +147,12 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     });
   }
 
-  Evidence get _currentEvidence => widget.evidences[_currentIndex];
+  Evidence get _currentEvidence =>
+      _updatedEvidences[_currentIndex] ?? widget.evidences[_currentIndex];
+
+  // Get evidence for any index, using cache if available
+  Evidence _getEvidence(int index) =>
+      _updatedEvidences[index] ?? widget.evidences[index];
 
   @override
   Widget build(BuildContext context) {
@@ -182,10 +194,16 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
         onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
+            // Auto-expand metadata if new evidence needs review
+            final newEvidence = _getEvidence(index);
+            if (newEvidence.needsReview) {
+              _showMetadata = true;
+            }
           });
         },
         itemBuilder: (context, index) {
-          final evidence = widget.evidences[index];
+          // Use cached evidence if available, otherwise original
+          final evidence = _getEvidence(index);
 
           final subject = subjectsAsync.whenOrNull(
             data: (subjects) {
@@ -413,9 +431,21 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
 
   Future<void> _updateSubject(int newSubjectId, WidgetRef ref) async {
     try {
-      final updatedEvidence = _currentEvidence.copyWith(subjectId: newSubjectId);
+      // Mark as reviewed if evidence has both subject and student assigned
+      final hasStudent = _currentEvidence.studentId != null;
+      final shouldBeReviewed = hasStudent; // Has student AND will have subject
+
+      final updatedEvidence = _currentEvidence.copyWith(
+        subjectId: newSubjectId,
+        isReviewed: shouldBeReviewed,
+      );
       final repository = ref.read(evidenceRepositoryProvider);
       await repository.updateEvidence(updatedEvidence);
+
+      // Update local cache and rebuild to show changes immediately
+      setState(() {
+        _updatedEvidences[_currentIndex] = updatedEvidence;
+      });
 
       // Refresh providers
       ref.invalidate(filteredEvidencesProvider);
@@ -446,30 +476,22 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     try {
       final repository = ref.read(evidenceRepositoryProvider);
 
-      if (newStudentId != null) {
-        // Assign to student (also updates isReviewed automatically)
-        await repository.assignEvidenceToStudent(
-          _currentEvidence.id!,
-          newStudentId,
-        );
-      } else {
-        // Unassign (set to null) - create new instance with explicit null
-        final updatedEvidence = Evidence(
-          id: _currentEvidence.id,
-          studentId: null, // Explicitly set to null
-          subjectId: _currentEvidence.subjectId,
-          type: _currentEvidence.type,
-          filePath: _currentEvidence.filePath,
-          thumbnailPath: _currentEvidence.thumbnailPath,
-          fileSize: _currentEvidence.fileSize,
-          duration: _currentEvidence.duration,
-          captureDate: _currentEvidence.captureDate,
-          isReviewed: false, // Unassigned means not reviewed
-          notes: _currentEvidence.notes,
-          createdAt: _currentEvidence.createdAt,
-        );
-        await repository.updateEvidence(updatedEvidence);
-      }
+      // Mark as reviewed only if has both subject and student
+      final hasStudentAfterUpdate = newStudentId != null;
+      final shouldBeReviewed = hasStudentAfterUpdate;
+
+      // Update with new student and reviewed status
+      final updatedEvidence = _currentEvidence.copyWith(
+        studentId: newStudentId, // Can be null to unassign
+        isReviewed: shouldBeReviewed,
+      );
+
+      await repository.updateEvidence(updatedEvidence);
+
+      // Update local cache and rebuild to show changes immediately
+      setState(() {
+        _updatedEvidences[_currentIndex] = updatedEvidence;
+      });
 
       // Refresh providers
       ref.invalidate(filteredEvidencesProvider);

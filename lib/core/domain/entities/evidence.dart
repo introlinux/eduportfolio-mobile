@@ -39,6 +39,11 @@ enum EvidenceType {
   }
 }
 
+/// Helper class to distinguish between "not provided" and "explicitly null" in copyWith
+class _Undefined {
+  const _Undefined();
+}
+
 /// Evidence entity representing captured media
 ///
 /// Immutable domain model for evidence (photos, videos, audios).
@@ -68,9 +73,12 @@ class Evidence {
   });
 
   /// Create a copy with updated fields
+  ///
+  /// To explicitly set a nullable field to null, use the special constant:
+  /// - Use `const _Null()` for studentId to set it to null
   Evidence copyWith({
     int? id,
-    int? studentId,
+    Object? studentId = const _Undefined(),
     int? subjectId,
     EvidenceType? type,
     String? filePath,
@@ -84,7 +92,7 @@ class Evidence {
   }) {
     return Evidence(
       id: id ?? this.id,
-      studentId: studentId ?? this.studentId,
+      studentId: studentId is _Undefined ? this.studentId : studentId as int?,
       subjectId: subjectId ?? this.subjectId,
       type: type ?? this.type,
       filePath: filePath ?? this.filePath,

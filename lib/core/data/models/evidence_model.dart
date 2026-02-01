@@ -54,7 +54,7 @@ class EvidenceModel extends Evidence {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
-      if (studentId != null) 'student_id': studentId,
+      'student_id': studentId, // Include even if null to allow unsetting
       'subject_id': subjectId,
       'type': type.toDbString(),
       'file_path': filePath,
