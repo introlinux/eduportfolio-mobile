@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -11,6 +12,8 @@ import 'package:eduportfolio/features/settings/presentation/providers/settings_p
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Quick capture screen with active camera for fast evidence capture
@@ -43,6 +46,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   String? _previewImagePath;
   String? _recognizedStudentName;
   int? _recognizedStudentId;
+
+  // Live recognition state
+  String? _liveRecognitionName;
+  int? _liveRecognizedStudentId;
+  bool _isProcessingFrame = false;
+  DateTime? _lastProcessTime;
+  bool _isStreamActive = false;
 
   @override
   void initState() {
@@ -101,12 +111,212 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
 
       if (mounted) {
         setState(() => _isInitializing = false);
+        // Start live recognition after camera is ready
+        _startLiveRecognition();
       }
     } catch (e) {
       setState(() {
         _isInitializing = false;
         _errorMessage = 'Error al inicializar cámara: $e';
       });
+    }
+  }
+
+  void _startLiveRecognition() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isStreamActive) {
+      return;
+    }
+
+    try {
+      _isStreamActive = true;
+
+      await _cameraController!.startImageStream((CameraImage cameraImage) async {
+        // Throttle: process every 500ms for better responsiveness
+        // GPU acceleration makes this faster without impacting battery significantly
+        final now = DateTime.now();
+        if (_lastProcessTime != null &&
+            now.difference(_lastProcessTime!).inMilliseconds < 500) {
+          return;
+        }
+
+        // Skip if already processing or capturing
+        if (_isProcessingFrame || _isCapturing) {
+          return;
+        }
+
+        _isProcessingFrame = true;
+        _lastProcessTime = now;
+
+        try {
+          // Convert YUV420 to RGB Image
+          final img.Image? convertedImage = await compute(
+            _convertYUV420ToImage,
+            cameraImage,
+          );
+
+          if (convertedImage != null && mounted) {
+            // Resize to 640x480 for better face detection accuracy
+            // Higher resolution helps detect smaller/distant faces
+            final img.Image resizedImage = img.copyResize(
+              convertedImage,
+              width: 640,
+              height: 480,
+              interpolation: img.Interpolation.linear, // Better quality for improved detection
+            );
+
+            // Save temporarily as JPEG
+            final tempDir = await getTemporaryDirectory();
+            final tempPath =
+                '${tempDir.path}/frame_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final file = File(tempPath);
+
+            // Encode with good quality for better face detection
+            final jpegBytes = img.encodeJpg(resizedImage, quality: 90);
+            await file.writeAsBytes(jpegBytes);
+
+            // Perform recognition
+            await _performLiveFaceRecognition(tempPath);
+
+            // Clean up temporary file
+            try {
+              await file.delete();
+            } catch (_) {
+              // Ignore deletion errors
+            }
+          }
+        } catch (e) {
+          debugPrint('Live recognition error: $e');
+        } finally {
+          _isProcessingFrame = false;
+        }
+      });
+    } catch (e) {
+      debugPrint('Failed to start image stream: $e');
+      _isStreamActive = false;
+    }
+  }
+
+  void _stopLiveRecognition() {
+    if (_cameraController != null && _isStreamActive) {
+      try {
+        _cameraController!.stopImageStream();
+        _isStreamActive = false;
+      } catch (e) {
+        debugPrint('Failed to stop image stream: $e');
+      }
+    }
+  }
+
+  /// Convert YUV420 CameraImage to RGB Image
+  /// This runs in a separate isolate via compute() for better performance
+  static img.Image? _convertYUV420ToImage(CameraImage cameraImage) {
+    final int width = cameraImage.width;
+    final int height = cameraImage.height;
+
+    final int uvRowStride = cameraImage.planes[1].bytesPerRow;
+    final int uvPixelStride = cameraImage.planes[1].bytesPerPixel ?? 1;
+
+    final img.Image image = img.Image(width: width, height: height);
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final int uvIndex =
+            uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
+        final int index = y * width + x;
+
+        final int yValue = cameraImage.planes[0].bytes[index];
+        final int uValue = cameraImage.planes[1].bytes[uvIndex];
+        final int vValue = cameraImage.planes[2].bytes[uvIndex];
+
+        // YUV to RGB conversion
+        final int r = (yValue + vValue * 1436 / 1024 - 179)
+            .round()
+            .clamp(0, 255)
+            .toInt();
+        final int g = (yValue -
+                    uValue * 46549 / 131072 +
+                    44 -
+                    vValue * 93604 / 131072 +
+                    91)
+            .round()
+            .clamp(0, 255)
+            .toInt();
+        final int b =
+            (yValue + uValue * 1814 / 1024 - 227).round().clamp(0, 255).toInt();
+
+        image.setPixelRgba(x, y, r, g, b, 255);
+      }
+    }
+
+    return image;
+  }
+
+  Future<void> _performLiveFaceRecognition(String imagePath) async {
+    try {
+      // Get face recognition service
+      final faceRecognitionService = ref.read(faceRecognitionServiceProvider);
+
+      // Get active course to filter students
+      final getActiveCourseUseCase = ref.read(getActiveCourseUseCaseProvider);
+      final activeCourse = await getActiveCourseUseCase();
+
+      if (activeCourse == null) {
+        // No active course, clear recognition
+        if (mounted) {
+          setState(() {
+            _liveRecognitionName = null;
+            _liveRecognizedStudentId = null;
+          });
+        }
+        return;
+      }
+
+      // Get students with face data from active course
+      final studentRepository = ref.read(studentRepositoryProvider);
+      final allStudents = await studentRepository.getAllStudents();
+      final studentsWithFaces = allStudents
+          .where((s) => s.courseId == activeCourse.id && s.hasFaceData)
+          .toList();
+
+      if (studentsWithFaces.isEmpty) {
+        // No students with face data, clear recognition
+        if (mounted) {
+          setState(() {
+            _liveRecognitionName = null;
+            _liveRecognizedStudentId = null;
+          });
+        }
+        return;
+      }
+
+      // Recognize student in frame
+      final result = await faceRecognitionService.recognizeStudent(
+        File(imagePath),
+        studentsWithFaces,
+      );
+
+      // Update live recognition state
+      if (mounted) {
+        setState(() {
+          if (result != null && result.student != null) {
+            _liveRecognitionName = result.student!.name;
+            _liveRecognizedStudentId = result.student!.id;
+          } else {
+            _liveRecognitionName = null;
+            _liveRecognizedStudentId = null;
+          }
+        });
+      }
+    } catch (e) {
+      // Recognition failed, clear state
+      if (mounted) {
+        setState(() {
+          _liveRecognitionName = null;
+          _liveRecognizedStudentId = null;
+        });
+      }
     }
   }
 
@@ -123,11 +333,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       // Take picture
       final image = await _cameraController!.takePicture();
 
-      // Perform face recognition
-      await _performFaceRecognition(image.path);
-
-      // Show preview with recognition result
+      // Use live recognition result instead of processing again
+      // This makes capture instant since recognition already happened
       setState(() {
+        _recognizedStudentName = _liveRecognitionName;
+        _recognizedStudentId = _liveRecognizedStudentId;
         _previewImagePath = image.path;
       });
 
@@ -269,18 +479,22 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       return; // No multiple cameras or currently capturing
     }
 
+    // Stop live recognition while switching
+    _stopLiveRecognition();
+
     // Switch to next camera (cycle through available cameras)
     _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
 
     // Dispose current controller
     await _cameraController?.dispose();
 
-    // Reinitialize with new camera
+    // Reinitialize with new camera (will restart live recognition)
     await _initializeCamera();
   }
 
   @override
   void dispose() {
+    _stopLiveRecognition();
     _cameraController?.dispose();
 
     // Invalidate providers when leaving to refresh home counters
@@ -344,11 +558,28 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           previewAspectRatio = previewSize.height / previewSize.width;
         }
 
-        return Center(
-          child: AspectRatio(
-            aspectRatio: previewAspectRatio,
-            child: CameraPreview(_cameraController!),
-          ),
+        return Stack(
+          children: [
+            // Camera preview
+            Center(
+              child: AspectRatio(
+                aspectRatio: previewAspectRatio,
+                child: CameraPreview(_cameraController!),
+              ),
+            ),
+            // Border overlay for recognition status
+            if (!_isCapturing)
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _liveRecognitionName != null
+                        ? Colors.green
+                        : Colors.orange.withValues(alpha: 0.5),
+                    width: 6,
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -415,6 +646,55 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
               ],
             ),
           ),
+
+          // Live recognition overlay
+          if (_liveRecognitionName != null && !_isCapturing)
+            Container(
+              margin: const EdgeInsets.only(top: 80),
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.face,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      _liveRecognitionName!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           const Spacer(),
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -27,8 +28,36 @@ class FaceEmbeddingService {
     print('========================================');
     try {
       print('Loading MobileFaceNet model from assets...');
+
+      // Configure interpreter options with GPU acceleration
+      final options = InterpreterOptions();
+
+      // Enable GPU acceleration for better performance
+      try {
+        if (Platform.isAndroid) {
+          print('Configuring GPU delegate for Android...');
+          final gpuDelegate = GpuDelegateV2(
+            options: GpuDelegateOptionsV2(),
+          );
+          options.addDelegate(gpuDelegate);
+          print('✓ GPU delegate configured for Android');
+        } else if (Platform.isIOS) {
+          print('Configuring GPU delegate for iOS...');
+          final gpuDelegate = GpuDelegate();
+          options.addDelegate(gpuDelegate);
+          print('✓ GPU delegate configured for iOS');
+        }
+      } catch (e) {
+        print('⚠️  GPU delegate setup failed: $e');
+        print('⚠️  Falling back to CPU execution');
+      }
+
+      // Set number of threads for CPU fallback
+      options.threads = 4;
+
       _interpreter = await Interpreter.fromAsset(
         'assets/models/mobilefacenet.tflite',
+        options: options,
       );
 
       print('✓ MobileFaceNet model loaded successfully');
@@ -49,6 +78,7 @@ class FaceEmbeddingService {
       }
 
       print('✓ MobileFaceNet ready for embedding extraction');
+      print('✓ GPU acceleration: ${Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Not available"}');
       print('========================================');
     } catch (e, stackTrace) {
       print('========================================');
