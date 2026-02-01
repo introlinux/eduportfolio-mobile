@@ -33,9 +33,33 @@ class _CourseFormScreenState extends ConsumerState<CourseFormScreen> {
     if (widget.courseId != null) {
       _loadCourse();
     } else {
-      // Default start date for new course
+      // Default start date and name for new course
       _startDate = DateTime.now();
+      _nameController.text = _getDefaultCourseName();
     }
+  }
+
+  /// Get default course name based on academic year
+  /// Academic year in Spain: September to August
+  /// - September-December: Current year to next year (e.g., Oct 2026 → "Curso 2026-27")
+  /// - January-August: Previous year to current year (e.g., Feb 2026 → "Curso 2025-26")
+  String _getDefaultCourseName() {
+    final now = DateTime.now();
+    final currentYear = now.year;
+    final currentMonth = now.month;
+
+    int startYear;
+    if (currentMonth >= 9) {
+      // September to December: use current year
+      startYear = currentYear;
+    } else {
+      // January to August: use previous year
+      startYear = currentYear - 1;
+    }
+
+    final endYear = startYear + 1;
+    // Format: "Curso 2025-26" (last 2 digits of end year)
+    return 'Curso $startYear-${endYear.toString().substring(2)}';
   }
 
   Future<void> _loadCourse() async {
@@ -227,11 +251,11 @@ class _CourseFormScreenState extends ConsumerState<CourseFormScreen> {
                     // Name field
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Nombre del curso',
-                        hintText: 'Curso 2024-25',
-                        prefixIcon: Icon(Icons.school),
-                        border: OutlineInputBorder(),
+                        hintText: isEditing ? 'Curso 2024-25' : _getDefaultCourseName(),
+                        prefixIcon: const Icon(Icons.school),
+                        border: const OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (value) {
