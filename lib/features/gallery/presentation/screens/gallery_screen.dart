@@ -175,9 +175,24 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
                   ),
                 );
 
+                // Get student for this evidence
+                final student = studentsAsync.whenOrNull(
+                  data: (students) {
+                    if (evidence.studentId == null) return null;
+                    try {
+                      return students.firstWhere(
+                        (s) => s.id == evidence.studentId,
+                      );
+                    } catch (_) {
+                      return null;
+                    }
+                  },
+                );
+
                 return EvidenceCard(
                   evidence: evidence,
                   subject: subject,
+                  student: student,
                   isSelected: isSelected,
                   isSelectionMode: _isSelectionMode,
                   onTap: () {

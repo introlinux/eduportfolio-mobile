@@ -200,7 +200,7 @@ class FaceDetectorService {
       }
 
       // Check if confidence is above threshold
-      const confidenceThreshold = 0.5;
+      const confidenceThreshold = 0.70;
       if (maxScore < confidenceThreshold) {
         print('No face detected (max confidence: ${maxScore.toStringAsFixed(2)})');
         return null;

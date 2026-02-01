@@ -79,13 +79,13 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         return;
       }
 
-      // On first initialization, prefer front camera for face training
+      // On first initialization, prefer back camera (same as quick capture)
       if (_currentCameraIndex == 0) {
-        final frontCameraIndex = _availableCameras.indexWhere(
-          (cam) => cam.lensDirection == CameraLensDirection.front,
+        final backCameraIndex = _availableCameras.indexWhere(
+          (cam) => cam.lensDirection == CameraLensDirection.back,
         );
-        if (frontCameraIndex != -1) {
-          _currentCameraIndex = frontCameraIndex;
+        if (backCameraIndex != -1) {
+          _currentCameraIndex = backCameraIndex;
         }
       }
 

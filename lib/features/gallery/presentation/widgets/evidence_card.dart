@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
+import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ import 'package:intl/intl.dart';
 class EvidenceCard extends StatelessWidget {
   final Evidence evidence;
   final Subject? subject;
+  final Student? student;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool isSelected;
@@ -17,6 +19,7 @@ class EvidenceCard extends StatelessWidget {
   const EvidenceCard({
     required this.evidence,
     this.subject,
+    this.student,
     this.onTap,
     this.onLongPress,
     this.isSelected = false,
@@ -27,7 +30,7 @@ class EvidenceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final dateFormat = DateFormat('d MMM yyyy');
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -102,22 +105,35 @@ class EvidenceCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Student name
+                  Text(
+                    student?.name ?? 'Sin asignar',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: student == null
+                          ? theme.colorScheme.onSurfaceVariant
+                          : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
                   // Subject name
                   if (subject != null)
                     Text(
                       subject!.name,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   // Capture date
                   Row(
                     children: [
                       Icon(
-                        Icons.access_time,
+                        Icons.calendar_today,
                         size: 14,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -134,26 +150,6 @@ class EvidenceCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  // File size
-                  if (evidence.fileSizeMB != null) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.storage,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${evidence.fileSizeMB!.toStringAsFixed(1)} MB',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
