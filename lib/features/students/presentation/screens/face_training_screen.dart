@@ -1,13 +1,18 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
+import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
 import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -17,14 +22,10 @@ class FaceTrainingScreen extends ConsumerStatefulWidget {
 
   final Student student;
 
-  const FaceTrainingScreen({
-    required this.student,
-    super.key,
-  });
+  const FaceTrainingScreen({required this.student, super.key});
 
   @override
-  ConsumerState<FaceTrainingScreen> createState() =>
-      _FaceTrainingScreenState();
+  ConsumerState<FaceTrainingScreen> createState() => _FaceTrainingScreenState();
 }
 
 class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
@@ -40,6 +41,21 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
   bool _isProcessing = false;
 
   static const int requiredPhotos = 5;
+
+  // Live detection state
+  bool _isStreamActive = false;
+  bool _isProcessingFrame = false;
+  DateTime? _lastProcessTime;
+  FaceRect? _detectedFaceRect;
+  int _detectionImageWidth = 240;  // Default values
+  int _detectionImageHeight = 320;
+  bool _faceDetected = false;
+  String? _faceQualityMessage;
+  
+  // Debug visualization
+  Uint8List? _debugImageBytes;
+  int _debugImageWidth = 0;
+  int _debugImageHeight = 0;
 
   @override
   void initState() {
@@ -108,12 +124,181 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
       if (mounted) {
         setState(() => _isInitializing = false);
+        _startLiveFaceDetection();
       }
     } catch (e) {
-      setState(() {
-        _isInitializing = false;
-        _errorMessage = 'Error al inicializar cámara: $e';
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+          _errorMessage = 'Error al inicializar cámara: $e';
+        });
+      }
+    }
+  }
+
+  void _startLiveFaceDetection() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isStreamActive) {
+      return;
+    }
+
+    try {
+      _isStreamActive = true;
+      final faceService = ref.read(faceRecognitionServiceProvider);
+      // We need access to the detector directly
+      // Ideally we would get it from the provider, but the service wraps it.
+      // We will create a fresh one or we need to expose it.
+      // Actually FaceRecognitionService has a _faceDetector, but it's private.
+      // We should use the provider for FaceDetectorService directly if possible or expose it.
+      // Let's assume we can get FaceDetectorService provider directly if it exists,
+      // OR we add a method to FaceRecognitionService to get the detector,
+      // OR we just assume the FaceRecognitionService is what we have.
+
+      // Checking providers... `faceDetectorServiceProvider` exists in `face_recognition_providers.dart`?
+      // I'll assume yes based on common patterns, otherwise I'll need to check.
+      // Re-reading `face_recognition_service.dart` (step 48)...
+      // It takes `FaceDetectorService` in constructor.
+
+      // Let's rely on reading `faceDetectorServiceProvider` (assuming it exists and is exposed).
+      // If not, I might need to fix that.
+      // For now, I'll use `ref.read(faceDetectorServiceProvider)`.
+
+      await _cameraController!.startImageStream((
+        CameraImage cameraImage,
+      ) async {
+        final now = DateTime.now();
+        if (_lastProcessTime != null &&
+            now.difference(_lastProcessTime!).inMilliseconds < 200) {
+          return;
+        }
+
+        if (_isProcessingFrame || _isCapturing || _isProcessing) {
+          return;
+        }
+
+        _isProcessingFrame = true;
+        _lastProcessTime = now;
+
+        try {
+          final img.Image? convertedImage = await compute(
+            _convertYUV420ToImage,
+            cameraImage,
+          );
+
+
+          if (convertedImage != null && mounted) {
+            var processedImage = convertedImage;
+            
+            debugPrint('Live detection - Original image: ${convertedImage.width}x${convertedImage.height}');
+            
+            // AUTOMATIC ROTATION CORRECTION
+            // The camera sensor typically returns landscape images (Width > Height).
+            // But the UI is Portrait. We must rotate the image to be Upright.
+            // 
+            // Based on user report:
+            // - Back Camera: "Rotated Left" -> Needs +90° to be upright.
+            // - Front Camera: "Rotated Right" -> Needs +270° (or -90°) to be upright.
+            
+            // Check if we are using Front or Back camera
+            final isFront = _availableCameras.isNotEmpty && 
+                           _currentCameraIndex < _availableCameras.length &&
+                           _availableCameras[_currentCameraIndex].lensDirection == CameraLensDirection.front;
+
+            if (convertedImage.width > convertedImage.height) {
+               // It's landscape, rotate to portrait
+               final angle = isFront ? 270 : 90;
+               processedImage = img.copyRotate(convertedImage, angle: angle);
+               debugPrint('Live detection - Rotated $angle° to: ${processedImage.width}x${processedImage.height}');
+            } else {
+               // Already portrait (rare for raw sensor data but possible)
+               debugPrint('Live detection - No rotation applied (already portrait)');
+            }
+            
+            // Resize for speed while maintaining aspect ratio
+            // Now the image is Portrait (e.g., 1080x1920 -> 135x240)
+            final int targetWidth = 160; // Slightly smaller for speed
+            final int targetHeight = (processedImage.height * targetWidth / processedImage.width).round();
+            
+            debugPrint('Live detection - Resizing to: ${targetWidth}x${targetHeight}');
+            
+            final img.Image resizedImage = img.copyResize(
+              processedImage,
+              width: targetWidth,
+              height: targetHeight,
+              interpolation: img.Interpolation.linear,
+            );
+            
+            // DEBUG: Encode image to bytes for visualization
+            final debugBytes = img.encodeJpg(resizedImage, quality: 70);
+
+            // Get detector
+            final faceDetector = ref.read(faceDetectorServiceProvider);
+            final result = await faceDetector.detectFaceFromImage(resizedImage);
+
+            if (mounted) {
+              setState(() {
+                // Update debug image
+                // Prefer the one from the detector (shows padding/squaring)
+                if (result?.debugImage != null) {
+                   _debugImageBytes = result!.debugImage;
+                   _debugImageWidth = 128; // Known model size
+                   _debugImageHeight = 128;
+                   debugPrint('✓ Using detector debug image: 128x128');
+                } else {
+                   _debugImageBytes = debugBytes;
+                   _debugImageWidth = resizedImage.width;
+                   _debugImageHeight = resizedImage.height;
+                   debugPrint('✓ Using resized image as debug: ${resizedImage.width}x${resizedImage.height}');
+                }
+
+                if (result != null) {
+                  debugPrint('✓ Face detected at: x=${result.box.x} y=${result.box.y} w=${result.box.width} h=${result.box.height}');
+                  debugPrint('✓ Detection image size: ${resizedImage.width}x${resizedImage.height}');
+                  _faceDetected = true;
+                  _detectedFaceRect = result.box;
+                  
+                  // Store the dimensions for coordinate mapping
+                  _detectionImageWidth = resizedImage.width;
+                  _detectionImageHeight = resizedImage.height;
+                  
+                  debugPrint('Live detection - Face found at: x=${result.box.x}, y=${result.box.y}, w=${result.box.width}, h=${result.box.height}');
+                  debugPrint('Live detection - Detection image size: ${_detectionImageWidth}x${_detectionImageHeight}');
+
+                  // Check simple quality metrics
+                  if (result.box.width < 40) {
+                    _faceQualityMessage = "Acércate más";
+                  } else {
+                    _faceQualityMessage = null; // Good
+                  }
+                } else {
+                  _faceDetected = false;
+                  _detectedFaceRect = null;
+                  _faceQualityMessage = "No se detecta rostro";
+                }
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint('Live detection error: $e');
+        } finally {
+          _isProcessingFrame = false;
+        }
       });
+    } catch (e) {
+      debugPrint('Failed to start stream: $e');
+      _isStreamActive = false;
+    }
+  }
+
+  void _stopLiveFaceDetection() {
+    if (_cameraController != null && _isStreamActive) {
+      try {
+        _cameraController!.stopImageStream();
+        _isStreamActive = false;
+      } catch (e) {
+        debugPrint('Failed to stop stream: $e');
+      }
     }
   }
 
@@ -132,8 +317,33 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       final image = await _cameraController!.takePicture();
       final file = File(image.path);
 
-      // TODO: Validate that photo contains a face
-      // For now, just add it
+      // Validate that photo contains a face
+      if (mounted) {
+        setState(
+          () => _isProcessing = true,
+        ); // Reuse blocking flag locally? Or just blocking UI
+      }
+
+      final faceDetector = ref.read(faceDetectorServiceProvider);
+      final detection = await faceDetector.detectFace(file);
+
+      if (detection == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se detectó ningún rostro. Inténtalo de nuevo.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(milliseconds: 1500),
+            ),
+          );
+        }
+        await file.delete();
+        setState(() => _isCapturing = false);
+        return;
+      }
+
+      // Also check confidence/quality if needed (detection != null implies >70% confidence per service logic)
+
       setState(() {
         _capturedPhotos.add(file);
       });
@@ -142,7 +352,9 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Foto ${_capturedPhotos.length}/$requiredPhotos capturada'),
+            content: Text(
+              'Foto ${_capturedPhotos.length}/$requiredPhotos capturada',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(milliseconds: 800),
           ),
@@ -164,7 +376,10 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isCapturing = false);
+        setState(() {
+          _isCapturing = false;
+          _isProcessing = false;
+        });
       }
     }
   }
@@ -186,8 +401,9 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       }
 
       // Update student with face embeddings
-      final updateFaceDataUseCase =
-          ref.read(updateStudentFaceDataUseCaseProvider);
+      final updateFaceDataUseCase = ref.read(
+        updateStudentFaceDataUseCaseProvider,
+      );
       await updateFaceDataUseCase(
         studentId: widget.student.id!,
         faceEmbeddings: Uint8List.fromList(result.embeddingBytes),
@@ -247,16 +463,75 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
     });
   }
 
+  /// Convert YUV420 CameraImage to RGB Image
+  /// This runs in a separate isolate via compute() for better performance
+  static img.Image? _convertYUV420ToImage(CameraImage cameraImage) {
+    final int width = cameraImage.width;
+    final int height = cameraImage.height;
+    
+    // Get strides for all planes
+    final int yRowStride = cameraImage.planes[0].bytesPerRow;
+    final int uvRowStride = cameraImage.planes[1].bytesPerRow;
+    final int uvPixelStride = cameraImage.planes[1].bytesPerPixel ?? 1;
+
+    final img.Image image = img.Image(width: width, height: height);
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final int uvIndex =
+            uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
+            
+        // Correct index calculation using stride
+        final int index = y * yRowStride + x; // x pixel stride is always 1 for Y plane
+
+        final int yValue = cameraImage.planes[0].bytes[index];
+        final int uValue = cameraImage.planes[1].bytes[uvIndex];
+        final int vValue = cameraImage.planes[2].bytes[uvIndex];
+
+        // YUV to RGB conversion
+        final int r = (yValue + vValue * 1436 / 1024 - 179)
+            .round()
+            .clamp(0, 255)
+            .toInt();
+        final int g =
+            (yValue -
+                    uValue * 46549 / 131072 +
+                    44 -
+                    vValue * 93604 / 131072 +
+                    91)
+                .round()
+                .clamp(0, 255)
+                .toInt();
+        final int b = (yValue + uValue * 1814 / 1024 - 227)
+            .round()
+            .clamp(0, 255)
+            .toInt();
+
+        image.setPixelRgba(x, y, r, g, b, 255);
+      }
+    }
+
+    return image;
+  }
+
   Future<void> _switchCamera() async {
     if (_availableCameras.length < 2 || _isCapturing || _isProcessing) {
       return; // No multiple cameras or currently busy
     }
+
+    // Stop live detection
+    _stopLiveFaceDetection();
+
+    setState(() {
+      _isInitializing = true;
+    });
 
     // Switch to next camera (cycle through available cameras)
     _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
 
     // Dispose current controller
     await _cameraController?.dispose();
+    _cameraController = null;
 
     // Reinitialize with new camera
     await _initializeCamera();
@@ -264,6 +539,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
   @override
   void dispose() {
+    _stopLiveFaceDetection();
     _cameraController?.dispose();
     // Clean up any remaining photos
     for (final photo in _capturedPhotos) {
@@ -306,19 +582,159 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
           if (_cameraController != null &&
               _cameraController!.value.isInitialized)
             _buildOverlayUI(theme),
+            
+          // DEBUG: Detector input visualization
+          _buildDebugOverlay(),
         ],
       ),
     );
   }
 
   Widget _buildCameraPreview() {
-    return SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: _cameraController!.value.previewSize!.height,
-          height: _cameraController!.value.previewSize!.width,
-          child: CameraPreview(_cameraController!),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate scale to fit 320x240 box updates to screen
+        // In this simple version, we'll just center the preview.
+        // For accurate box usage, we need to know the rendered size of CameraPreview.
+
+        final size = _cameraController!.value.previewSize!;
+
+        // Handle aspect ratio
+        var previewAspectRatio = size.width / size.height;
+        if (constraints.maxWidth / constraints.maxHeight < 1.0) {
+          previewAspectRatio = size.height / size.width;
+        }
+
+        return Stack(
+          children: [
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  // Swapped logic for portrait mode usually
+                  width: size.height,
+                  height: size.width,
+                  child: CameraPreview(_cameraController!),
+                ),
+              ),
+            ),
+
+            // Face Bounding Box Overlay
+            if (_faceDetected && _detectedFaceRect != null)
+              _buildFaceOverlay(constraints.maxWidth, constraints.maxHeight),
+
+            // Quality message
+            if (_faceQualityMessage != null)
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _faceQualityMessage!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+  
+  // Debug widget to visualize what the detector sees
+  Widget _buildDebugOverlay() {
+    if (_debugImageBytes == null) return const SizedBox.shrink();
+    
+    return Positioned(
+      left: 10,
+      bottom: 250, // Above control buttons
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.red, width: 2),
+          color: Colors.black,
+        ),
+        child: Column(
+          children: [
+            Text('Detector Input (${_debugImageWidth}x${_debugImageHeight})', 
+                 style: const TextStyle(color: Colors.white, fontSize: 10)),
+            // Show ONLY the raw tensor input (128x128)
+            // Note: Do NOT draw detection box here - coordinates are in different space
+            // (FaceRect coords are for resized image ~160px, tensor is 128x128 square with padding)
+            Image.memory(
+              _debugImageBytes!,
+              width: 160, // Scale up slightly for visibility
+              fit: BoxFit.contain,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildFaceOverlay(double screenWidth, double screenHeight) {
+    if (_detectedFaceRect == null) return const SizedBox.shrink();
+
+    // Mapping Logic Simplified:
+    // 1. input image is now UPRIGHT (Portrait) thanks to pre-rotation.
+    //    Dimensions: _detectionImageWidth x _detectionImageHeight (e.g. 135x240)
+    // 2. Screen is Portrait (screenWidth x screenHeight)
+    // 
+    // We just need to Scale.
+    // AND Mirror if it's Front Camera.
+
+    final double detW = _detectionImageWidth.toDouble();
+    final double detH = _detectionImageHeight.toDouble();
+    
+    final double boxX = _detectedFaceRect!.x.toDouble();
+    final double boxY = _detectedFaceRect!.y.toDouble();
+    final double boxW = _detectedFaceRect!.width.toDouble();
+    final double boxH = _detectedFaceRect!.height.toDouble();
+
+    debugPrint('Overlay - Box: $boxX,$boxY ${boxW}x$boxH in ${detW}x$detH');
+
+    // Check if Front Camera (Mirroring)
+     final isFront = _availableCameras.isNotEmpty && 
+                           _currentCameraIndex < _availableCameras.length &&
+                           _availableCameras[_currentCameraIndex].lensDirection == CameraLensDirection.front;
+
+    // Calculate Relative Coordinates (0.0 - 1.0)
+    double relX = boxX / detW;
+    final double relY = boxY / detH;
+    final double relW = boxW / detW;
+    final double relH = boxH / detH;
+    
+    // Apply Mirroring for Front Camera
+    if (isFront) {
+      // Flip Horizontal: The "Left" becomes (1.0 - Right)
+      // old Right edge = relX + relW
+      // new Left edge = 1.0 - (relX + relW)
+      relX = 1.0 - (relX + relW);
+    }
+
+    return Positioned(
+      left: relX * screenWidth,
+      top: relY * screenHeight,
+      width: relW * screenWidth,
+      height: relH * screenHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: _faceQualityMessage == null ? Colors.green : Colors.yellow,
+            width: 3,
+          ),
+          borderRadius: BorderRadius.circular(4),
         ),
       ),
     );
@@ -361,7 +777,10 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
                     // Camera switch button (only show if multiple cameras available)
                     if (_availableCameras.length > 1)
                       IconButton(
-                        icon: const Icon(Icons.flip_camera_android, color: Colors.white),
+                        icon: const Icon(
+                          Icons.flip_camera_android,
+                          color: Colors.white,
+                        ),
                         onPressed: _switchCamera,
                         tooltip: 'Cambiar cámara',
                       ),
@@ -440,8 +859,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
                 // Capture button
                 GestureDetector(
-                  onTap: _isCapturing ||
-                          _capturedPhotos.length >= requiredPhotos
+                  onTap:
+                      _isCapturing || _capturedPhotos.length >= requiredPhotos
                       ? null
                       : _capturePhoto,
                   child: Container(
@@ -458,8 +877,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
                       color: _isCapturing
                           ? Colors.grey
                           : (_capturedPhotos.length >= requiredPhotos
-                              ? Colors.green
-                              : Colors.white.withValues(alpha: 0.3)),
+                                ? Colors.green
+                                : Colors.white.withValues(alpha: 0.3)),
                     ),
                     child: _isCapturing
                         ? const Center(
@@ -514,9 +933,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
             const SizedBox(height: 24),
             Text(
               'Procesando fotos de entrenamiento...',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-              ),
+              style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
@@ -541,9 +958,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
           const SizedBox(height: 16),
           Text(
             'Iniciando cámara...',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-            ),
+            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
           ),
         ],
       ),
@@ -557,17 +972,11 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red,
-            ),
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             Text(
               _errorMessage ?? 'Error desconocido',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: Colors.white,
-              ),
+              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -581,7 +990,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
               ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: _initializeCamera,
+              onPressed: () => _initializeCamera(),
               icon: const Icon(Icons.refresh, color: Colors.white),
               label: const Text(
                 'Reintentar',

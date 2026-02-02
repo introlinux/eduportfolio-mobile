@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
+import 'dart:isolate';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:flutter/foundation.dart';
@@ -9,7 +11,8 @@ import 'package:flutter/foundation.dart';
 /// This service is responsible for:
 /// 1. Detecting if a face exists in an image
 /// 2. Extracting face bounding box coordinates
-/// 3. Cropping the face region for further processing
+/// 3. Aligning the face based on eye landmarks (rotation)
+/// 4. Cropping the face region for further processing
 class FaceDetectorService {
   /// TFLite interpreter for BlazeFace face detection model
   Interpreter? _interpreter;
@@ -40,15 +43,19 @@ class FaceDetectorService {
       final scale = minScale + (maxScale - minScale) * layerIndex / (strides.length - 1);
 
       // Generate anchors for each position in feature map
+      // BlazeFace uses 2 anchors per location
       for (int y = 0; y < featureMapHeight; y++) {
         for (int x = 0; x < featureMapWidth; x++) {
           // Calculate normalized center coordinates
           final xCenter = (x + anchorOffsetX) / featureMapWidth;
           final yCenter = (y + anchorOffsetY) / featureMapHeight;
 
-          // Add anchor [x_center, y_center, width, height]
-          // Note: width and height are fixed at 1.0 for BlazeFace
-          _anchors!.add([xCenter, yCenter, 1.0, 1.0]);
+          // Add 2 anchors per location (BlazeFace architecture)
+          for (int a = 0; a < 2; a++) {
+            // Add anchor [x_center, y_center, width, height]
+            // Note: width and height are fixed at 1.0 for BlazeFace
+            _anchors!.add([xCenter, yCenter, 1.0, 1.0]);
+          }
         }
       }
 
@@ -124,12 +131,6 @@ class FaceDetectorService {
         print('  $line');
       }
       print('✗ Face detection will FAIL (placeholder returns null)');
-      print('✗ Please verify:');
-      print('  1. File exists: assets/models/blaze_face_full_range.tflite');
-      print('  2. pubspec.yaml includes: assets/models/');
-      print('  3. Run: flutter clean && flutter pub get');
-      print('  4. Check if tflite_flutter plugin installed correctly');
-      print('  5. GPU delegates may not be available on all devices');
       print('========================================');
       // Don't rethrow - allow graceful degradation
     }
@@ -142,39 +143,93 @@ class FaceDetectorService {
     print('Face detector disposed');
   }
 
+  /// Detect face in image and return detection result (box + landmarks)
+  ///
+  /// Returns null if no face is detected
+  Future<FaceDetectionResult?> detectFace(File imageFile) async {
+    try {
+      // Run heavy image decoding in Isolate
+      final image = await Isolate.run(() async {
+        final bytes = await imageFile.readAsBytes();
+        var decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        decoded = img.bakeOrientation(decoded);
+        
+        if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
+          decoded = img.copyRotate(decoded, angle: 90);
+        }
+        
+        return decoded;
+      });
+
+      if (image == null) return null;
+
+      // Use BlazeFace for detection
+      return await _detectFaceWithBlazeFace(image);
+    } catch (e) {
+      print('Error detecting face: $e');
+      return null;
+    }
+  }
+
+  /// Detect face from already loaded image (e.g. from camera stream)
+  Future<FaceDetectionResult?> detectFaceFromImage(img.Image image) async {
+    try {
+      return await _detectFaceWithBlazeFace(image);
+    } catch (e) {
+      print('Error detecting face from image: $e');
+      return null;
+    }
+  }
+
   /// Detect face in image and return cropped face
   ///
   /// Returns null if no face is detected
-  /// Returns cropped face image if face is found
+  /// Returns cropped (and aligned/rotated) face image if face is found
   Future<img.Image?> detectAndCropFace(File imageFile) async {
     try {
-      // Read image file
-      final bytes = await imageFile.readAsBytes();
-      var image = img.decodeImage(bytes);
+      // Run heavy image decoding in Isolate
+      final image = await Isolate.run(() async {
+        final bytes = await imageFile.readAsBytes();
+        var decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        // Fix orientation based on EXIF metadata (expensive)
+        decoded = img.bakeOrientation(decoded);
+        
+        // Android camera workaround:
+        // Even after bakeOrientation, Android camera images often have the
+        // CONTENT rotated 90° from what it should be. The image dimensions
+        // may be correct (portrait 2160x3840) but the face is sideways.
+        // We rotate +90° to fix the content orientation.
+        // Only apply to large images (likely from camera, not thumbnails)
+        // AND only if the image is portrait (height > width).
+        // If it's landscape (width > height), the sensor alignment is usually correct.
+        if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
+          // Rotate content +90° (CW) to correct the Android camera rotation regarding Portrait
+          decoded = img.copyRotate(decoded, angle: 90);
+        }
+        
+        return decoded;
+      });
 
       if (image == null) {
         return null;
       }
 
-      // Fix orientation based on EXIF metadata
-      // This corrects images captured in landscape/portrait modes
-      image = img.bakeOrientation(image);
+      // DEBUG: Log image dimensions to verify orientation
+      print('  - DEBUG Image dimensions after bakeOrientation: ${image.width}x${image.height}');
 
       // Use BlazeFace for real face detection
-      final faceRect = await _detectFaceWithBlazeFace(image);
+      final detection = await _detectFaceWithBlazeFace(image);
 
-      if (faceRect == null) {
+      if (detection == null) {
         return null;
       }
 
-      // Crop the face region
-      final croppedFace = img.copyCrop(
-        image,
-        x: faceRect.x,
-        y: faceRect.y,
-        width: faceRect.width,
-        height: faceRect.height,
-      );
+      // Perform heavy cropping and optional rotation in Isolate
+      final croppedFace = await Isolate.run(() {
+        return _alignAndCropFace(image, detection);
+      });
 
       return croppedFace;
     } catch (e) {
@@ -186,28 +241,33 @@ class FaceDetectorService {
   /// Detect face in memory (from Uint8List)
   Future<img.Image?> detectAndCropFaceFromBytes(Uint8List bytes) async {
     try {
-      var image = img.decodeImage(bytes);
+      // Run heavy image decoding in Isolate
+      final image = await Isolate.run(() {
+        var decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        decoded = img.bakeOrientation(decoded);
+        
+        // Android camera workaround: rotate large images +90° only if portrait
+        if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
+          decoded = img.copyRotate(decoded, angle: 90);
+        }
+        
+        return decoded;
+      });
 
       if (image == null) {
         return null;
       }
 
-      // Fix orientation based on EXIF metadata
-      image = img.bakeOrientation(image);
+      final detection = await _detectFaceWithBlazeFace(image);
 
-      final faceRect = await _detectFaceWithBlazeFace(image);
-
-      if (faceRect == null) {
+      if (detection == null) {
         return null;
       }
 
-      final croppedFace = img.copyCrop(
-        image,
-        x: faceRect.x,
-        y: faceRect.y,
-        width: faceRect.width,
-        height: faceRect.height,
-      );
+      final croppedFace = await Isolate.run(() {
+        return _alignAndCropFace(image, detection);
+      });
 
       return croppedFace;
     } catch (e) {
@@ -216,45 +276,174 @@ class FaceDetectorService {
     }
   }
 
+  /// Helper to align (rotate) and crop the face based on landmarks
+  static img.Image _alignAndCropFace(img.Image image, FaceDetectionResult detection) {
+    var srcImage = image;
+    final faceRect = detection.box;
+
+    // Calculate rotation angle if landmarks are available
+    if (detection.rightEye != null && detection.leftEye != null) {
+      final rightEye = detection.rightEye!;
+      final leftEye = detection.leftEye!;
+
+      // DEBUG: Log landmark positions
+      print('  - DEBUG Landmarks: rightEye=(${rightEye.x.toStringAsFixed(1)}, ${rightEye.y.toStringAsFixed(1)}), leftEye=(${leftEye.x.toStringAsFixed(1)}, ${leftEye.y.toStringAsFixed(1)})');
+      print('  - DEBUG FaceBox: x=${faceRect.x}, y=${faceRect.y}, w=${faceRect.width}, h=${faceRect.height}');
+
+      // Calculate angle between eyes
+      // For a normal upright face: leftEye.x < rightEye.x (left eye is on the left side of image)
+      // Use (leftEye - rightEye) to get vector pointing from right to left
+      final dy = leftEye.y - rightEye.y;
+      final dx = leftEye.x - rightEye.x;
+      
+      // Calculate angle in degrees
+      final angleRad = atan2(dy, dx);
+      var angleDeg = angleRad * 180 / pi;
+
+      print('  - DEBUG: dy=$dy, dx=$dx, angleDeg=${angleDeg.toStringAsFixed(1)}');
+
+      // Only apply rotation if angle is reasonable (between -30 and +30 degrees)
+      // Larger values indicate incorrect landmark detection
+      if (angleDeg.abs() > 5.0 && angleDeg.abs() <= 30.0) {
+        print('  - Face rotation needed: ${angleDeg.toStringAsFixed(1)}°');
+        
+        // Strategy: Crop a larger area, rotate it, then crop the core face.
+        // This avoids rotating the full multi-megapixel image.
+        
+        final expandedPadding = 0.5; // 50% extra padding
+        final cx = faceRect.x + faceRect.width / 2;
+        final cy = faceRect.y + faceRect.height / 2;
+        // Size of the loose crop (enough to cover rotation without losing corners)
+        final size = max(faceRect.width, faceRect.height) * (1 + expandedPadding);
+        
+        final ex = (cx - size / 2).toInt();
+        final ey = (cy - size / 2).toInt();
+        final es = size.toInt();
+        
+        // Crop loose box (clamp to bounds)
+        // copyCrop handles out of bounds by clamping? No, we must clamp.
+        final safeX = ex.clamp(0, image.width - 1);
+        final safeY = ey.clamp(0, image.height - 1);
+        // Ensure width/height don't go out of bounds
+        final safeW = (safeX + es > image.width) ? image.width - safeX : es;
+        final safeH = (safeY + es > image.height) ? image.height - safeY : es;
+        
+        if (safeW <= 0 || safeH <= 0) {
+          // Should not happen if face is inside image
+          return img.copyCrop(srcImage, x: faceRect.x, y: faceRect.y, width: faceRect.width, height: faceRect.height);
+        }
+
+        var looseCrop = img.copyCrop(
+          image, 
+          x: safeX, 
+          y: safeY, 
+          width: safeW, 
+          height: safeH
+        );
+        
+        // Rotate the loose crop
+        // We want to rotate so eyes become horizontal.
+        // Use NEGATIVE angle to counter the detected tilt.
+        looseCrop = img.copyRotate(looseCrop, angle: -angleDeg);
+        
+        // Now crop the center of the rotated loose crop to get final face
+        // Final size should be roughly original face size
+        final finalSize = max(faceRect.width, faceRect.height);
+        
+        // Center of the rotated image
+        final looseCx = looseCrop.width / 2;
+        final looseCy = looseCrop.height / 2;
+        
+        final startX = (looseCx - finalSize / 2).toInt().clamp(0, looseCrop.width - 1);
+        final startY = (looseCy - finalSize / 2).toInt().clamp(0, looseCrop.height - 1);
+        final finalW = (startX + finalSize > looseCrop.width) ? looseCrop.width - startX : finalSize;
+        final finalH = (startY + finalSize > looseCrop.height) ? looseCrop.height - startY : finalSize;
+
+        return img.copyCrop(
+          looseCrop, 
+          x: startX, 
+          y: startY, 
+          width: finalW, 
+          height: finalH
+        );
+      }
+    }
+
+    // Default: just crop directly if no rotation needed
+    return img.copyCrop(
+      srcImage,
+      x: faceRect.x,
+      y: faceRect.y,
+      width: faceRect.width,
+      height: faceRect.height,
+    );
+  }
+
   /// Detect face using BlazeFace TFLite model
-  ///
-  /// Returns FaceRect with bounding box coordinates
-  /// Falls back to placeholder if model not initialized or detection fails
-  Future<FaceRect?> _detectFaceWithBlazeFace(img.Image image) async {
+  Future<FaceDetectionResult?> _detectFaceWithBlazeFace(img.Image image) async {
     // Fallback to placeholder if model not initialized
     if (_interpreter == null) {
       print('⚠️  BlazeFace not initialized - model failed to load');
-      return _detectFacePlaceholder(image);
+      return null;
     }
 
-    print('🔍 Detecting face with BlazeFace...');
+    // print('🔍 Detecting face with BlazeFace...');
 
     try {
-      // Resize image to model input size (128x128)
-      final resized = img.copyResize(
-        image,
-        width: 128,
-        height: 128,
-        interpolation: img.Interpolation.linear,
-      );
-
-      // Convert image to input tensor [1, 128, 128, 3] normalized to [-1, 1]
-      final input = _imageToInputTensor(resized);
+      // Aspect Ratio Preservation:
+      // BlazeFace expects 128x128 square input. Default copyResize distorts aspect ratio,
+      // creating "squashed" faces in portrait mode (9:16 -> 1:1) which fails detection.
+      // We must Pad to Square (Letterbox) before resizing.
+      
+      final double imgW = image.width.toDouble();
+      final double imgH = image.height.toDouble();
+      final double maxDim = max(imgW, imgH);
+      
+      // Calculate padding to center image in square
+      final double padX = (maxDim - imgW) / 2.0;
+      final double padY = (maxDim - imgH) / 2.0;
+      
+      final isolateResult = await Isolate.run(() {
+        // Create square canvas
+        final square = img.Image(
+          width: maxDim.toInt(), 
+          height: maxDim.toInt(),
+          backgroundColor: img.ColorRgb8(0, 0, 0)
+        );
+        
+        // Composite original image into center
+        img.compositeImage(square, image, dstX: padX.toInt(), dstY: padY.toInt());
+        
+        // Now resize the SQUARE image to 128x128 (Aspect ratio preserved)
+        final resized = img.copyResize(
+          square,
+          width: 128,
+          height: 128,
+          interpolation: img.Interpolation.linear,
+        );
+        
+        final tensor = _imageToInputTensor(resized);
+        final debugBytes = img.encodeJpg(resized);
+        
+        return {'tensor': tensor, 'debugBytes': debugBytes};
+      });
+      
+      final input = isolateResult['tensor'] as List<List<List<List<double>>>>;
+      final debugImageBytes = isolateResult['debugBytes'] as Uint8List;
 
       // Prepare output tensors
       // Output 0: Detection boxes [1, 896, 16] (coords + landmarks)
-      // Output 1: Detection scores [1, 896, 1] (note: extra dimension)
+      // Output 1: Detection scores [1, 896, 1]
       var outputBoxes = List.generate(
         1,
         (_) => List.generate(896, (_) => List.filled(16, 0.0)),
       );
-      // BlazeFace returns [1, 896, 1] not [1, 896]
       var outputScores = List.generate(
         1,
         (_) => List.generate(896, (_) => [0.0]),
       );
 
-      // Run inference
+      // Run inference (Must happen on same thread where interpreter was created/loaded)
       _interpreter!.runForMultipleInputs(
         [input],
         {
@@ -263,13 +452,13 @@ class FaceDetectorService {
         },
       );
 
-      // Find detection with highest confidence
+      // Post-processing finding max score
+      // This is fast enough for main thread
       double maxScore = 0.0;
       int maxIndex = -1;
       final scores = outputScores[0];
 
       for (int i = 0; i < scores.length; i++) {
-        // Extract score from [score] array (shape is [1, 896, 1])
         final score = scores[i][0];
         if (score > maxScore) {
           maxScore = score;
@@ -277,81 +466,126 @@ class FaceDetectorService {
         }
       }
 
-      // Check if confidence is above threshold
-      // Note: Full-Range model may have different confidence distribution than Short-Range
-      // Adjust this value (0.60-0.80) if getting too many false positives/negatives
       const confidenceThreshold = 0.70;
       if (maxScore < confidenceThreshold) {
-        print('No face detected (max confidence: ${maxScore.toStringAsFixed(2)})');
+        // print('No face detected (max confidence: ${maxScore.toStringAsFixed(2)})');
         return null;
       }
 
-      // Decode bounding box using anchors
-      // BlazeFace outputs offsets relative to anchors, not absolute coordinates
-      final boxes = outputBoxes[0][maxIndex];
+      // Decode bounding box and landmarks
+      final rawData = outputBoxes[0][maxIndex];
       final anchor = _anchors![maxIndex];
+      const modelInputSize = 128.0;
 
-      // Scale factor for BlazeFace Short-Range (input size 128)
-      const scale = 128.0;
+      // Decode Box (Normalized 0..1 relative to the 128x128 Input Square)
+      final yCenterNorm = (rawData[0] / modelInputSize) + anchor[1];
+      final xCenterNorm = (rawData[1] / modelInputSize) + anchor[0];
+      final heightNorm = rawData[2] / modelInputSize;
+      final widthNorm = rawData[3] / modelInputSize;
 
-      // Decode center coordinates (boxes[0]=y_center, boxes[1]=x_center)
-      final yCenterOffset = boxes[0] / scale;
-      final xCenterOffset = boxes[1] / scale;
-      final yCenter = yCenterOffset + anchor[1]; // anchor[1] is y_center
-      final xCenter = xCenterOffset + anchor[0]; // anchor[0] is x_center
+      // Map from Model Space (128x128) to Square Space (maxDim x maxDim)
+      // The model outputs normalized coords relative to 128x128, so we scale up
+      const modelInputSize128 = 128.0;
+      final yCenterPx128 = yCenterNorm * modelInputSize128;
+      final xCenterPx128 = xCenterNorm * modelInputSize128;
+      final heightPx128 = heightNorm * modelInputSize128;
+      final widthPx128 = widthNorm * modelInputSize128;
 
-      // Decode size (boxes[2]=height, boxes[3]=width)
-      final heightOffset = boxes[2] / scale;
-      final widthOffset = boxes[3] / scale;
-      final boxHeight = heightOffset;
-      final boxWidth = widthOffset;
+      // Now scale from 128x128 to maxDim x maxDim (the square before resizing)
+      final scale = maxDim / modelInputSize128;
+      final yCenterPx = yCenterPx128 * scale;
+      final xCenterPx = xCenterPx128 * scale;
+      final heightPx = heightPx128 * scale;
+      final widthPx = widthPx128 * scale;
 
-      // Convert from center format to corner format
-      final ymin = (yCenter - boxHeight / 2).clamp(0.0, 1.0);
-      final xmin = (xCenter - boxWidth / 2).clamp(0.0, 1.0);
-      final ymax = (yCenter + boxHeight / 2).clamp(0.0, 1.0);
-      final xmax = (xCenter + boxWidth / 2).clamp(0.0, 1.0);
+      // Map from Square to Original Image (Subtract Padding)
+      final yCenter = yCenterPx - padY;
+      final xCenter = xCenterPx - padX;
+      // Width/Height maintain same scale
+      final height = heightPx;
+      final width = widthPx;
 
-      print('Face detected with confidence: ${maxScore.toStringAsFixed(2)}');
-      print('  Decoded box: [${ymin.toStringAsFixed(3)}, ${xmin.toStringAsFixed(3)}, ${ymax.toStringAsFixed(3)}, ${xmax.toStringAsFixed(3)}]');
-
-      // Denormalize to pixel coordinates
       final imgWidth = image.width;
       final imgHeight = image.height;
 
-      int x = (xmin * imgWidth).toInt();
-      int y = (ymin * imgHeight).toInt();
-      int width = ((xmax - xmin) * imgWidth).toInt();
-      int height = ((ymax - ymin) * imgHeight).toInt();
+      // Debug logs (commented out for performance)
+      // print('DEBUG DETECT: Img=${imgWidth}x${imgHeight} MaxDim=$maxDim Pad=${padX}x${padY}');
+      // print('DEBUG DETECT: RawModel=[y:${rawData[0]}, x:${rawData[1]}, h:${rawData[2]}, w:${rawData[3]}]');
+      // print('DEBUG DETECT: Anchor=[x:${anchor[0]}, y:${anchor[1]}]');
+      // print('DEBUG DETECT: NormBox=[y:$yCenterNorm, x:$xCenterNorm, h:$heightNorm, w:$widthNorm]');
+      // print('DEBUG DETECT: PxBoxInSquare=[y:$yCenterPx, x:$xCenterPx, h:$heightPx, w:$widthPx]');
+      // print('DEBUG DETECT: FinalBox=[y:$yCenter, x:$xCenter, h:$height, w:$width]');
 
-      // Add 20% padding for better face crop
-      final paddingX = (width * 0.2).toInt();
-      final paddingY = (height * 0.2).toInt();
+      // Calculate Box Corners (in PIXELS)
+      final ymin = yCenter - height / 2;
+      final xmin = xCenter - width / 2;
+      final ymax = yCenter + height / 2;
+      final xmax = xCenter + width / 2;
 
-      x = (x - paddingX).clamp(0, imgWidth - 1);
-      y = (y - paddingY).clamp(0, imgHeight - 1);
-      width = (width + 2 * paddingX).clamp(1, imgWidth - x);
-      height = (height + 2 * paddingY).clamp(1, imgHeight - y);
+      // print('DEBUG DETECT: FinalCorners=[ymin:$ymin, xmin:$xmin, ymax:$ymax, xmax:$xmax]');
 
-      return FaceRect(
-        x: x,
-        y: y,
-        width: width,
-        height: height,
+      // Landmarks Decoding Helper
+      // They also need to be mapped from Normalized -> Square -> Original
+      Point<double> getLandmark(int index) {
+        final lyNorm = (rawData[4 + index * 2] / modelInputSize) + anchor[1];
+        final lxNorm = (rawData[4 + index * 2 + 1] / modelInputSize) + anchor[0];
+        
+        final lyPx = lyNorm * maxDim;
+        final lxPx = lxNorm * maxDim;
+        
+        return Point(lxPx - padX, lyPx - padY);
+      }
+      
+      final rightEye = getLandmark(0);
+      final leftEye = getLandmark(1);
+      // final nose = getLandmark(2);
+
+      // Convert to Integer Rect (Clamped to image bounds)
+      int x = xmin.toInt();
+      int y = ymin.toInt();
+      int w = (xmax - xmin).toInt();
+      int h = (ymax - ymin).toInt();
+
+      // Add padding (Face box is usually tight 1:1, add context)
+      final paddingX = (w * 0.2).toInt();
+      final paddingY = (h * 0.2).toInt();
+
+      x = (x - paddingX).clamp(0, imgWidth - 1).toInt();
+      y = (y - paddingY).clamp(0, imgHeight - 1).toInt();
+      w = (w + 2 * paddingX).clamp(1, imgWidth - x).toInt();
+      h = (h + 2 * paddingY).clamp(1, imgHeight - y).toInt();
+
+      print('Face detected with confidence: ${maxScore.toStringAsFixed(2)}');
+      
+      // Return the debug image too (Input Square)
+      // We need to re-encode it closer to the generation point or here.
+      // Since 'image' here is the original full size, and we lost the 'resized' 128x128
+      // inside the isolate, we can't easily return the EXACT tensor image unless we change the isolate return type.
+      
+      // Let's assume for now we just want to see the alignment, 
+      // but to see the tensor input we need to modify the Isolate block.
+      // But for simplicity, I will skip returning the exact debug image from Isolate for now to minimize code churn,
+      // UNLESS necessary.
+      // Wait, the plan IS to return it. Okay.
+      
+      print('Face detected with confidence: ${maxScore.toStringAsFixed(2)}');
+      
+      return FaceDetectionResult(
+        box: FaceRect(x: x, y: y, width: w, height: h),
+        rightEye: rightEye,
+        leftEye: leftEye,
+        debugImage: debugImageBytes,
       );
+
     } catch (e) {
       print('Error in BlazeFace detection: $e');
-      print('Falling back to placeholder detection');
-      return _detectFacePlaceholder(image);
+      return null;
     }
   }
 
-  /// Convert image to input tensor for BlazeFace
-  ///
-  /// Returns [1, 128, 128, 3] tensor with pixels normalized to [-1, 1]
-  List<List<List<List<double>>>> _imageToInputTensor(img.Image image) {
-    // Create tensor [1, 128, 128, 3]
-    final input = List.generate(
+  /// Static helper for Isolate usage
+  static List<List<List<List<double>>>> _imageToInputTensor(img.Image image) {
+    return List.generate(
       1,
       (_) => List.generate(
         128,
@@ -359,7 +593,6 @@ class FaceDetectorService {
           128,
           (x) {
             final pixel = image.getPixel(x, y);
-            // Extract RGB channels and normalize to [-1, 1]
             final r = (pixel.r / 127.5) - 1.0;
             final g = (pixel.g / 127.5) - 1.0;
             final b = (pixel.b / 127.5) - 1.0;
@@ -368,59 +601,32 @@ class FaceDetectorService {
         ),
       ),
     );
-
-    return input;
   }
 
-  /// PLACEHOLDER: Simple face detection using center crop
-  ///
-  /// Used as fallback when BlazeFace model is not available
-  /// IMPORTANT: This should NOT be used in production - always returns null
-  /// to prevent false positives (detecting faces where there are none)
-  FaceRect? _detectFacePlaceholder(img.Image image) {
-    print('WARNING: Using placeholder face detection - BlazeFace not available');
-    print('  Returning NULL to prevent false positives');
-
-    // Always return null to prevent false positives
-    // In production, we need real face detection
-    return null;
-
-    // OLD PLACEHOLDER CODE (disabled):
-    // This always detected a "face" in the center, causing false positives
-    // final width = image.width;
-    // final height = image.height;
-    // final faceSize = (width * 0.6).toInt();
-    // final x = (width - faceSize) ~/ 2;
-    // final y = (height - faceSize) ~/ 2;
-    // return FaceRect(x: x, y: y, width: faceSize, height: faceSize);
-  }
-
-  /// Check if image likely contains a face
-  ///
-  /// TODO: Use real face detection to validate
-  Future<bool> hasFace(File imageFile) async {
-    final face = await detectAndCropFace(imageFile);
-    return face != null;
-  }
-
-  /// Normalize face image for model input
-  ///
-  /// Resize to 112x112 (MobileFaceNet input size)
-  /// Normalize pixel values to [-1, 1]
-  img.Image normalizeFaceForModel(img.Image face) {
-    // Resize to model input size (112x112 for MobileFaceNet)
-    final resized = img.copyResize(
-      face,
-      width: 112,
-      height: 112,
-      interpolation: img.Interpolation.linear,
-    );
-
-    return resized;
+  /// Normalize face for model input (MobileFaceNet)
+  /// Resize to 112x112
+  Future<img.Image> normalizeFaceForModel(img.Image face) async {
+    // Run in Isolate as resize is costly
+    return await Isolate.run(() {
+      return img.copyResize(
+        face,
+        width: 112,
+        height: 112,
+        interpolation: img.Interpolation.linear,
+      );
+    });
   }
 }
 
-/// Face bounding box
+class FaceDetectionResult {
+  final FaceRect box;
+  final Point<double>? rightEye;
+  final Point<double>? leftEye;
+  final Uint8List? debugImage;
+
+  FaceDetectionResult({required this.box, this.rightEye, this.leftEye, this.debugImage});
+}
+
 class FaceRect {
   final int x;
   final int y;
