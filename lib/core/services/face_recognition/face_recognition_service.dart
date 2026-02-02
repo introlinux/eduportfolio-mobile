@@ -202,6 +202,75 @@ class FaceRecognitionService {
     );
   }
 
+  /// Process training photos with pre-computed detections (OPTIMIZED)
+  ///
+  /// Takes 5 photos and their detection results, extracts embeddings, averages them
+  /// Skips face re-detection since we already validated faces during capture
+  /// Returns the averaged embedding as bytes for storage
+  ///
+  /// This is ~2-3x faster than processTrainingPhotos since it avoids redundant detection
+  Future<TrainingResult> processTrainingPhotosWithDetections(
+    List<File> photos,
+    List<FaceDetectionResult> detections,
+  ) async {
+    if (photos.length != 5) {
+      return TrainingResult.error('Exactly 5 photos required');
+    }
+
+    if (photos.length != detections.length) {
+      return TrainingResult.error('Photos and detections count mismatch');
+    }
+
+    final embeddings = <List<double>>[];
+    final failedPhotos = <int>[];
+
+    // Process each photo with its pre-computed detection
+    for (int i = 0; i < photos.length; i++) {
+      final photo = photos[i];
+      final detection = detections[i];
+
+      // Crop face using pre-computed detection (skips detection step!)
+      final face = await _faceDetector.cropFaceWithDetection(photo, detection);
+      if (face == null) {
+        failedPhotos.add(i + 1);
+        continue;
+      }
+
+      // Extract embedding
+      final embedding = await _embeddingService.extractEmbedding(face);
+      if (embedding == null) {
+        failedPhotos.add(i + 1);
+        continue;
+      }
+
+      embeddings.add(embedding);
+    }
+
+    // Check if we have enough valid embeddings
+    if (embeddings.length < 3) {
+      return TrainingResult.error(
+        'Too many failed photos. Failed: ${failedPhotos.join(", ")}',
+      );
+    }
+
+    // Average embeddings
+    final averagedEmbedding = _embeddingService.averageEmbeddings(embeddings);
+
+    // Normalize
+    final normalizedEmbedding =
+        _embeddingService.normalizeEmbedding(averagedEmbedding);
+
+    // Convert to bytes for storage
+    final embeddingBytes =
+        _embeddingService.embeddingToBytes(normalizedEmbedding);
+
+    return TrainingResult.success(
+      embeddingBytes: embeddingBytes,
+      successfulPhotos: embeddings.length,
+      failedPhotos: failedPhotos,
+    );
+  }
+
   /// Dispose resources
   void dispose() {
     _faceDetector.dispose();

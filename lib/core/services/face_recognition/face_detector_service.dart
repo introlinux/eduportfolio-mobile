@@ -164,8 +164,8 @@ class FaceDetectorService {
 
       if (image == null) return null;
 
-      // Use BlazeFace for detection
-      return await _detectFaceWithBlazeFace(image);
+      // Use BlazeFace for detection (no debug image for performance)
+      return await _detectFaceWithBlazeFace(image, generateDebugImage: false);
     } catch (e) {
       print('Error detecting face: $e');
       return null;
@@ -175,7 +175,8 @@ class FaceDetectorService {
   /// Detect face from already loaded image (e.g. from camera stream)
   Future<FaceDetectionResult?> detectFaceFromImage(img.Image image) async {
     try {
-      return await _detectFaceWithBlazeFace(image);
+      // Generate debug image for live preview visualization
+      return await _detectFaceWithBlazeFace(image, generateDebugImage: true);
     } catch (e) {
       print('Error detecting face from image: $e');
       return null;
@@ -234,6 +235,48 @@ class FaceDetectorService {
       return croppedFace;
     } catch (e) {
       print('Error detecting face: $e');
+      return null;
+    }
+  }
+
+  /// Crop face using pre-computed detection result (optimized for training)
+  ///
+  /// This method skips face detection and directly crops using known coordinates.
+  /// Used when we already detected the face during capture validation.
+  Future<img.Image?> cropFaceWithDetection(
+    File imageFile,
+    FaceDetectionResult detection,
+  ) async {
+    try {
+      // Run heavy image decoding in Isolate (same as detectAndCropFace)
+      final image = await Isolate.run(() async {
+        final bytes = await imageFile.readAsBytes();
+        var decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        // Fix orientation based on EXIF metadata (expensive)
+        decoded = img.bakeOrientation(decoded);
+
+        // Android camera workaround (same as detectAndCropFace)
+        if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
+          decoded = img.copyRotate(decoded, angle: 90);
+        }
+
+        return decoded;
+      });
+
+      if (image == null) {
+        return null;
+      }
+
+      // Use the pre-computed detection result (skip detection step!)
+      // Perform heavy cropping in Isolate
+      final croppedFace = await Isolate.run(() {
+        return _alignAndCropFace(image, detection);
+      });
+
+      return croppedFace;
+    } catch (e) {
+      print('Error cropping face with detection: $e');
       return null;
     }
   }
@@ -380,7 +423,12 @@ class FaceDetectorService {
   }
 
   /// Detect face using BlazeFace TFLite model
-  Future<FaceDetectionResult?> _detectFaceWithBlazeFace(img.Image image) async {
+  ///
+  /// Set [generateDebugImage] to false to skip debug image generation (improves performance)
+  Future<FaceDetectionResult?> _detectFaceWithBlazeFace(
+    img.Image image, {
+    bool generateDebugImage = false,
+  }) async {
     // Fallback to placeholder if model not initialized
     if (_interpreter == null) {
       print('⚠️  BlazeFace not initialized - model failed to load');
@@ -403,17 +451,18 @@ class FaceDetectorService {
       final double padX = (maxDim - imgW) / 2.0;
       final double padY = (maxDim - imgH) / 2.0;
       
-      final isolateResult = await Isolate.run(() {
+      // Process image in isolate for better performance
+      final tensor = await Isolate.run(() {
         // Create square canvas
         final square = img.Image(
-          width: maxDim.toInt(), 
+          width: maxDim.toInt(),
           height: maxDim.toInt(),
           backgroundColor: img.ColorRgb8(0, 0, 0)
         );
-        
+
         // Composite original image into center
         img.compositeImage(square, image, dstX: padX.toInt(), dstY: padY.toInt());
-        
+
         // Now resize the SQUARE image to 128x128 (Aspect ratio preserved)
         final resized = img.copyResize(
           square,
@@ -421,15 +470,23 @@ class FaceDetectorService {
           height: 128,
           interpolation: img.Interpolation.linear,
         );
-        
-        final tensor = _imageToInputTensor(resized);
-        final debugBytes = img.encodeJpg(resized);
-        
-        return {'tensor': tensor, 'debugBytes': debugBytes};
+
+        return _imageToInputTensor(resized);
       });
-      
-      final input = isolateResult['tensor'] as List<List<List<List<double>>>>;
-      final debugImageBytes = isolateResult['debugBytes'] as Uint8List;
+
+      final input = tensor;
+      // Generate debug image only if requested (on main thread to avoid isolate complexity)
+      Uint8List? debugImageBytes;
+      if (generateDebugImage) {
+        final square = img.Image(
+          width: maxDim.toInt(),
+          height: maxDim.toInt(),
+          backgroundColor: img.ColorRgb8(0, 0, 0)
+        );
+        img.compositeImage(square, image, dstX: padX.toInt(), dstY: padY.toInt());
+        final resized = img.copyResize(square, width: 128, height: 128, interpolation: img.Interpolation.linear);
+        debugImageBytes = img.encodeJpg(resized);
+      }
 
       // Prepare output tensors
       // Output 0: Detection boxes [1, 896, 16] (coords + landmarks)

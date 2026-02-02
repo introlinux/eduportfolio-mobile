@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:isolate';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
@@ -91,11 +92,6 @@ class FaceEmbeddingService {
         print('  $line');
       }
       print('✗ Embedding extraction will FAIL (returns null)');
-      print('✗ Please verify:');
-      print('  1. File exists: assets/models/mobilefacenet.tflite');
-      print('  2. pubspec.yaml includes: assets/models/');
-      print('  3. Run: flutter clean && flutter pub get');
-      print('  4. Check if tflite_flutter plugin installed correctly');
       print('========================================');
       // Don't rethrow - allow graceful degradation
     }
@@ -113,11 +109,13 @@ class FaceEmbeddingService {
 
     try {
       // Normalize face for model input (already 112x112 from detector)
-      final normalizedFace = _faceDetector.normalizeFaceForModel(faceImage);
+      // Note: normalizeFaceForModel is now async (uses Isolate)
+      final normalizedFace = await _faceDetector.normalizeFaceForModel(faceImage);
 
-      // Convert to input tensor [1, 112, 112, 3]
-      // _preprocessImage() is already correctly implemented
-      final input = _preprocessImage(normalizedFace);
+      // Convert to input tensor [1, 112, 112, 3] with normalization in Isolate
+      final input = await Isolate.run(() {
+         return _preprocessImage(normalizedFace);
+      });
 
       // Prepare output tensor [1, 192] (this model outputs 192D embeddings)
       var output = List.generate(1, (_) => List.filled(192, 0.0));
@@ -135,8 +133,6 @@ class FaceEmbeddingService {
         return null;
       }
 
-      print('Extracted embedding: first 5 values = [${embedding.take(5).map((v) => v.toStringAsFixed(3)).join(", ")}]');
-
       return embedding;
     } catch (e) {
       print('Error extracting embedding: $e');
@@ -145,13 +141,13 @@ class FaceEmbeddingService {
   }
 
   /// Preprocess image for model input
-  ///
-  /// MobileFaceNet expects:
-  /// - Input shape: [1, 112, 112, 3]
-  /// - Pixel values: normalized to [-1, 1]
-  /// - Color format: RGB
-  List<List<List<List<double>>>> _preprocessImage(img.Image face) {
-    final input = List.generate(
+  /// Static so it can run in Isolate
+  static List<List<List<List<double>>>> _preprocessImage(img.Image face) {
+    // MobileFaceNet expects:
+    // - Input shape: [1, 112, 112, 3]
+    // - Pixel values: normalized to [-1, 1]
+    // - Color format: RGB
+    return List.generate(
       1,
       (_) => List.generate(
         112,
@@ -168,8 +164,6 @@ class FaceEmbeddingService {
         ),
       ),
     );
-
-    return input;
   }
 
   /// PLACEHOLDER: Generate random embedding for testing
@@ -183,8 +177,6 @@ class FaceEmbeddingService {
   }
 
   /// Average multiple embeddings into one
-  ///
-  /// Used to create a robust student profile from 5 training photos
   List<double> averageEmbeddings(List<List<double>> embeddings) {
     if (embeddings.isEmpty) {
       throw ArgumentError('Cannot average empty list of embeddings');
@@ -210,8 +202,6 @@ class FaceEmbeddingService {
   }
 
   /// Normalize embedding to unit length
-  ///
-  /// This improves comparison accuracy
   List<double> normalizeEmbedding(List<double> embedding) {
     // Calculate L2 norm
     double norm = 0.0;

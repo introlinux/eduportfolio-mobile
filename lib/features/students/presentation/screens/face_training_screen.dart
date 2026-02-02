@@ -16,6 +16,14 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+/// Helper class to store captured photo with its face detection result
+class _CapturedPhoto {
+  final File file;
+  final FaceDetectionResult detection;
+
+  _CapturedPhoto({required this.file, required this.detection});
+}
+
 /// Face training screen - Capture 5 photos for face recognition training
 class FaceTrainingScreen extends ConsumerStatefulWidget {
   static const routeName = '/face-training';
@@ -36,7 +44,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
   bool _hasPermission = false;
   String? _errorMessage;
 
-  final List<File> _capturedPhotos = [];
+  final List<_CapturedPhoto> _capturedPhotos = [];
   bool _isCapturing = false;
   bool _isProcessing = false;
 
@@ -238,23 +246,14 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
             if (mounted) {
               setState(() {
-                // Update debug image
-                // Prefer the one from the detector (shows padding/squaring)
-                if (result?.debugImage != null) {
-                   _debugImageBytes = result!.debugImage;
-                   _debugImageWidth = 128; // Known model size
-                   _debugImageHeight = 128;
-                   debugPrint('✓ Using detector debug image: 128x128');
-                } else {
-                   _debugImageBytes = debugBytes;
-                   _debugImageWidth = resizedImage.width;
-                   _debugImageHeight = resizedImage.height;
-                   debugPrint('✓ Using resized image as debug: ${resizedImage.width}x${resizedImage.height}');
-                }
+                // Debug image update disabled for performance
+                // if (result?.debugImage != null) {
+                //    _debugImageBytes = result!.debugImage;
+                //    _debugImageWidth = 128;
+                //    _debugImageHeight = 128;
+                // }
 
                 if (result != null) {
-                  debugPrint('✓ Face detected at: x=${result.box.x} y=${result.box.y} w=${result.box.width} h=${result.box.height}');
-                  debugPrint('✓ Detection image size: ${resizedImage.width}x${resizedImage.height}');
                   _faceDetected = true;
                   _detectedFaceRect = result.box;
                   
@@ -345,7 +344,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       // Also check confidence/quality if needed (detection != null implies >70% confidence per service logic)
 
       setState(() {
-        _capturedPhotos.add(file);
+        _capturedPhotos.add(_CapturedPhoto(file: file, detection: detection));
       });
 
       // Show feedback
@@ -391,9 +390,14 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       // Get face recognition service
       final faceRecognitionService = ref.read(faceRecognitionServiceProvider);
 
-      // Process training photos
-      final result = await faceRecognitionService.processTrainingPhotos(
-        _capturedPhotos,
+      // Extract files and detections to pass to optimized processing
+      final files = _capturedPhotos.map((p) => p.file).toList();
+      final detections = _capturedPhotos.map((p) => p.detection).toList();
+
+      // Process training photos with pre-computed detections (avoids re-detecting)
+      final result = await faceRecognitionService.processTrainingPhotosWithDetections(
+        files,
+        detections,
       );
 
       if (!result.success || result.embeddingBytes.isEmpty) {
@@ -412,7 +416,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       // Clean up temporary files
       for (final photo in _capturedPhotos) {
         try {
-          await photo.delete();
+          await photo.file.delete();
         } catch (_) {}
       }
 
@@ -458,7 +462,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       final removed = _capturedPhotos.removeLast();
       // Delete file
       try {
-        removed.deleteSync();
+        removed.file.deleteSync();
       } catch (_) {}
     });
   }
@@ -544,7 +548,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
     // Clean up any remaining photos
     for (final photo in _capturedPhotos) {
       try {
-        photo.deleteSync();
+        photo.file.deleteSync();
       } catch (_) {}
     }
     super.dispose();
@@ -583,8 +587,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
               _cameraController!.value.isInitialized)
             _buildOverlayUI(theme),
             
-          // DEBUG: Detector input visualization
-          _buildDebugOverlay(),
+          // DEBUG: Detector input visualization (disabled for performance)
+          // _buildDebugOverlay(),
         ],
       ),
     );

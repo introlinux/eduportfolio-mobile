@@ -157,13 +157,16 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           );
 
           if (convertedImage != null && mounted) {
+            // Android camera stream (YUV) on this device appears to be upright (angle ~0-15°)
+            // even if dimensions are landscape (640x480).
+            // No rotation needed for the stream.
+            
             // Resize to 640x480 for better face detection accuracy
-            // Higher resolution helps detect smaller/distant faces
             final img.Image resizedImage = img.copyResize(
               convertedImage,
               width: 640,
               height: 480,
-              interpolation: img.Interpolation.linear, // Better quality for improved detection
+              interpolation: img.Interpolation.linear,
             );
 
             // Save temporarily as JPEG
@@ -482,11 +485,16 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     // Stop live recognition while switching
     _stopLiveRecognition();
 
+    setState(() {
+      _isInitializing = true;
+    });
+
     // Switch to next camera (cycle through available cameras)
     _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
 
     // Dispose current controller
     await _cameraController?.dispose();
+    _cameraController = null;
 
     // Reinitialize with new camera (will restart live recognition)
     await _initializeCamera();
