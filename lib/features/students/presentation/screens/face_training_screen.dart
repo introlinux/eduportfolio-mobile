@@ -16,12 +16,12 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-/// Helper class to store captured photo with its face detection result
+/// Helper class to store captured photo data in memory
 class _CapturedPhoto {
-  final File file;
+  final img.Image image; // Processed image in memory (no disk I/O!)
   final FaceDetectionResult detection;
 
-  _CapturedPhoto({required this.file, required this.detection});
+  _CapturedPhoto({required this.image, required this.detection});
 }
 
 /// Face training screen - Capture 5 photos for face recognition training
@@ -319,8 +319,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       // Capture photo
       debugPrint('  - Taking picture...');
       final takePictureStart = DateTime.now();
-      final image = await _cameraController!.takePicture();
-      final file = File(image.path);
+      final capturedImage = await _cameraController!.takePicture();
+      final file = File(capturedImage.path);
       final takePictureDuration = DateTime.now().difference(takePictureStart);
       debugPrint('  - Picture taken in ${takePictureDuration.inMilliseconds}ms');
 
@@ -331,14 +331,22 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         ); // Reuse blocking flag locally? Or just blocking UI
       }
 
-      debugPrint('  - Detecting face for validation...');
-      final detectionStart = DateTime.now();
-      final faceDetector = ref.read(faceDetectorServiceProvider);
-      final detection = await faceDetector.detectFace(file);
-      final detectionDuration = DateTime.now().difference(detectionStart);
-      debugPrint('  - Face detection completed in ${detectionDuration.inMilliseconds}ms');
+      // Process image in memory (read, decode, detect) - ONLY ONCE
+      debugPrint('  - Processing image in memory...');
+      final processingStart = DateTime.now();
 
-      if (detection == null) {
+      final faceDetector = ref.read(faceDetectorServiceProvider);
+      final result = await faceDetector.detectFaceFromFile(file);
+
+      final processingDuration = DateTime.now().difference(processingStart);
+      debugPrint('  - Image processed in ${processingDuration.inMilliseconds}ms');
+
+      // Delete temporary file immediately (we have image in memory now)
+      try {
+        await file.delete();
+      } catch (_) {}
+
+      if (result == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -348,15 +356,16 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
             ),
           );
         }
-        await file.delete();
         setState(() => _isCapturing = false);
         return;
       }
 
-      // Also check confidence/quality if needed (detection != null implies >70% confidence per service logic)
-
+      // Store processed image + detection in memory (NO disk I/O!)
       setState(() {
-        _capturedPhotos.add(_CapturedPhoto(file: file, detection: detection));
+        _capturedPhotos.add(_CapturedPhoto(
+          image: result.processedImage,
+          detection: result.detection,
+        ));
       });
 
       final captureTotalDuration = DateTime.now().difference(captureStartTime);
@@ -406,13 +415,13 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       // Get face recognition service
       final faceRecognitionService = ref.read(faceRecognitionServiceProvider);
 
-      // Extract files and detections to pass to optimized processing
-      final files = _capturedPhotos.map((p) => p.file).toList();
+      // Extract images and detections from memory (NO disk I/O!)
+      final images = _capturedPhotos.map((p) => p.image).toList();
       final detections = _capturedPhotos.map((p) => p.detection).toList();
 
-      // Process training photos with pre-computed detections (avoids re-detecting)
+      // Process training photos with pre-computed detections (avoids re-detecting + I/O)
       final result = await faceRecognitionService.processTrainingPhotosWithDetections(
-        files,
+        images,
         detections,
       );
 
@@ -429,12 +438,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         faceEmbeddings: Uint8List.fromList(result.embeddingBytes),
       );
 
-      // Clean up temporary files
-      for (final photo in _capturedPhotos) {
-        try {
-          await photo.file.delete();
-        } catch (_) {}
-      }
+      // No cleanup needed - images were kept in memory (no files on disk)
 
       // Invalidate providers
       ref.invalidate(filteredStudentsProvider);
@@ -475,11 +479,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
     if (_capturedPhotos.isEmpty) return;
 
     setState(() {
-      final removed = _capturedPhotos.removeLast();
-      // Delete file
-      try {
-        removed.file.deleteSync();
-      } catch (_) {}
+      _capturedPhotos.removeLast();
+      // No file to delete - image was only in memory
     });
   }
 
@@ -561,12 +562,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
   void dispose() {
     _stopLiveFaceDetection();
     _cameraController?.dispose();
-    // Clean up any remaining photos
-    for (final photo in _capturedPhotos) {
-      try {
-        photo.file.deleteSync();
-      } catch (_) {}
-    }
+    // No cleanup needed - images were only in memory
+    _capturedPhotos.clear();
     super.dispose();
   }
 

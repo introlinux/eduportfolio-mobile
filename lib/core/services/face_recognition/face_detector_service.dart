@@ -143,6 +143,57 @@ class FaceDetectorService {
     print('Face detector disposed');
   }
 
+  /// Detect face and return both processed image and detection (OPTIMIZED for training)
+  ///
+  /// Returns image in memory to avoid re-reading from disk later.
+  /// This eliminates duplicate I/O during training workflow.
+  Future<({img.Image processedImage, FaceDetectionResult detection})?> detectFaceFromFile(
+    File imageFile,
+  ) async {
+    try {
+      debugPrint('    - Reading and decoding image...');
+      final readStart = DateTime.now();
+
+      // Run heavy image decoding in Isolate
+      final image = await Isolate.run(() async {
+        final bytes = await imageFile.readAsBytes();
+        var decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        decoded = img.bakeOrientation(decoded);
+
+        // Android camera workaround
+        if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
+          decoded = img.copyRotate(decoded, angle: 90);
+        }
+
+        return decoded;
+      });
+
+      if (image == null) {
+        return null;
+      }
+
+      final readDuration = DateTime.now().difference(readStart);
+      debugPrint('    - Image decoded in ${readDuration.inMilliseconds}ms');
+
+      debugPrint('    - Detecting face...');
+      final detectionStart = DateTime.now();
+      final detection = await _detectFaceWithBlazeFace(image);
+      final detectionDuration = DateTime.now().difference(detectionStart);
+      debugPrint('    - Face detected in ${detectionDuration.inMilliseconds}ms');
+
+      if (detection == null) {
+        return null;
+      }
+
+      // Return both image and detection
+      return (processedImage: image, detection: detection);
+    } catch (e) {
+      debugPrint('❌ Error detecting face from file: $e');
+      return null;
+    }
+  }
+
   /// Detect face in image and return detection result (box + landmarks)
   ///
   /// Returns null if no face is detected
@@ -154,11 +205,11 @@ class FaceDetectorService {
         var decoded = img.decodeImage(bytes);
         if (decoded == null) return null;
         decoded = img.bakeOrientation(decoded);
-        
+
         if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
           decoded = img.copyRotate(decoded, angle: 90);
         }
-        
+
         return decoded;
       });
 
@@ -241,40 +292,19 @@ class FaceDetectorService {
 
   /// Crop face using pre-computed detection result (optimized for training)
   ///
+  /// Accepts image already in memory to eliminate disk I/O.
   /// This method skips face detection and directly crops using known coordinates.
-  /// Used when we already detected the face during capture validation.
   Future<img.Image?> cropFaceWithDetection(
-    File imageFile,
+    img.Image image,
     FaceDetectionResult detection,
   ) async {
     try {
-      debugPrint('🚀 OPTIMIZED: Cropping with pre-computed detection (SKIP detection step)');
+      debugPrint('🚀 OPTIMIZED: Cropping with pre-computed detection (SKIP detection + I/O)');
       final startTime = DateTime.now();
 
-      // Run heavy image decoding in Isolate (same as detectAndCropFace)
-      final image = await Isolate.run(() async {
-        final bytes = await imageFile.readAsBytes();
-        var decoded = img.decodeImage(bytes);
-        if (decoded == null) return null;
-        // Fix orientation based on EXIF metadata (expensive)
-        decoded = img.bakeOrientation(decoded);
+      debugPrint('  - Image already in memory: ${image.width}x${image.height}');
 
-        // Android camera workaround (same as detectAndCropFace)
-        if ((decoded.width > 1000 || decoded.height > 1000) && decoded.height > decoded.width) {
-          decoded = img.copyRotate(decoded, angle: 90);
-        }
-
-        return decoded;
-      });
-
-      if (image == null) {
-        return null;
-      }
-
-      debugPrint('  - Image decoded and oriented: ${image.width}x${image.height}');
-
-      // Use the pre-computed detection result (skip detection step!)
-      // Perform heavy cropping in Isolate
+      // Perform cropping in Isolate (image already processed, just crop!)
       final croppedFace = await Isolate.run(() {
         return _alignAndCropFace(image, detection);
       });

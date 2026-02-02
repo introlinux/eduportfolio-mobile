@@ -4,6 +4,7 @@ import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_embedding_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 
 /// Main face recognition service
 ///
@@ -205,26 +206,26 @@ class FaceRecognitionService {
 
   /// Process training photos with pre-computed detections (OPTIMIZED)
   ///
-  /// Takes 5 photos and their detection results, extracts embeddings, averages them
-  /// Skips face re-detection since we already validated faces during capture
+  /// Takes 5 images in memory and their detection results, extracts embeddings, averages them
+  /// Skips face re-detection AND disk I/O since images are already processed in memory
   /// Returns the averaged embedding as bytes for storage
   ///
-  /// This is ~2-3x faster than processTrainingPhotos since it avoids redundant detection
+  /// This is ~10x faster than processTrainingPhotos since it avoids redundant detection + I/O
   Future<TrainingResult> processTrainingPhotosWithDetections(
-    List<File> photos,
+    List<img.Image> images,
     List<FaceDetectionResult> detections,
   ) async {
     debugPrint('');
     debugPrint('═══════════════════════════════════════════════════');
-    debugPrint('🔥 OPTIMIZED TRAINING: Using pre-computed detections');
+    debugPrint('🔥 OPTIMIZED TRAINING: Using images in memory (NO disk I/O)');
     debugPrint('═══════════════════════════════════════════════════');
     final startTime = DateTime.now();
 
-    if (photos.length != 5) {
+    if (images.length != 5) {
       return TrainingResult.error('Exactly 5 photos required');
     }
 
-    if (photos.length != detections.length) {
+    if (images.length != detections.length) {
       return TrainingResult.error('Photos and detections count mismatch');
     }
 
@@ -232,16 +233,16 @@ class FaceRecognitionService {
     final failedPhotos = <int>[];
 
     // Process each photo with its pre-computed detection
-    for (int i = 0; i < photos.length; i++) {
+    for (int i = 0; i < images.length; i++) {
       debugPrint('');
       debugPrint('📷 Processing photo ${i + 1}/5...');
       final photoStartTime = DateTime.now();
 
-      final photo = photos[i];
+      final image = images[i];
       final detection = detections[i];
 
-      // Crop face using pre-computed detection (skips detection step!)
-      final face = await _faceDetector.cropFaceWithDetection(photo, detection);
+      // Crop face using pre-computed detection (NO detection, NO I/O!)
+      final face = await _faceDetector.cropFaceWithDetection(image, detection);
       if (face == null) {
         debugPrint('❌ Photo ${i + 1} failed to crop');
         failedPhotos.add(i + 1);
