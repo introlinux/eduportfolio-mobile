@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_embedding_service.dart';
+import 'package:flutter/foundation.dart';
 
 /// Main face recognition service
 ///
