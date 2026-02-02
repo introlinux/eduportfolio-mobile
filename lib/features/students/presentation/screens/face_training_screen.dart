@@ -309,12 +309,20 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       return;
     }
 
+    debugPrint('');
+    debugPrint('📸 CAPTURE ${_capturedPhotos.length + 1}/5 started...');
+    final captureStartTime = DateTime.now();
+
     setState(() => _isCapturing = true);
 
     try {
       // Capture photo
+      debugPrint('  - Taking picture...');
+      final takePictureStart = DateTime.now();
       final image = await _cameraController!.takePicture();
       final file = File(image.path);
+      final takePictureDuration = DateTime.now().difference(takePictureStart);
+      debugPrint('  - Picture taken in ${takePictureDuration.inMilliseconds}ms');
 
       // Validate that photo contains a face
       if (mounted) {
@@ -323,8 +331,12 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         ); // Reuse blocking flag locally? Or just blocking UI
       }
 
+      debugPrint('  - Detecting face for validation...');
+      final detectionStart = DateTime.now();
       final faceDetector = ref.read(faceDetectorServiceProvider);
       final detection = await faceDetector.detectFace(file);
+      final detectionDuration = DateTime.now().difference(detectionStart);
+      debugPrint('  - Face detection completed in ${detectionDuration.inMilliseconds}ms');
 
       if (detection == null) {
         if (mounted) {
@@ -346,6 +358,10 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       setState(() {
         _capturedPhotos.add(_CapturedPhoto(file: file, detection: detection));
       });
+
+      final captureTotalDuration = DateTime.now().difference(captureStartTime);
+      debugPrint('✅ CAPTURE ${_capturedPhotos.length}/5 completed in ${captureTotalDuration.inMilliseconds}ms');
+      debugPrint('');
 
       // Show feedback
       if (mounted) {

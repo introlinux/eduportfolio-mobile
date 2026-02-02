@@ -213,6 +213,12 @@ class FaceRecognitionService {
     List<File> photos,
     List<FaceDetectionResult> detections,
   ) async {
+    debugPrint('');
+    debugPrint('═══════════════════════════════════════════════════');
+    debugPrint('🔥 OPTIMIZED TRAINING: Using pre-computed detections');
+    debugPrint('═══════════════════════════════════════════════════');
+    final startTime = DateTime.now();
+
     if (photos.length != 5) {
       return TrainingResult.error('Exactly 5 photos required');
     }
@@ -226,24 +232,38 @@ class FaceRecognitionService {
 
     // Process each photo with its pre-computed detection
     for (int i = 0; i < photos.length; i++) {
+      debugPrint('');
+      debugPrint('📷 Processing photo ${i + 1}/5...');
+      final photoStartTime = DateTime.now();
+
       final photo = photos[i];
       final detection = detections[i];
 
       // Crop face using pre-computed detection (skips detection step!)
       final face = await _faceDetector.cropFaceWithDetection(photo, detection);
       if (face == null) {
+        debugPrint('❌ Photo ${i + 1} failed to crop');
         failedPhotos.add(i + 1);
         continue;
       }
 
       // Extract embedding
+      debugPrint('  - Extracting embedding...');
+      final embeddingStartTime = DateTime.now();
       final embedding = await _embeddingService.extractEmbedding(face);
+      final embeddingDuration = DateTime.now().difference(embeddingStartTime);
+      debugPrint('  - Embedding extracted in ${embeddingDuration.inMilliseconds}ms');
+
       if (embedding == null) {
+        debugPrint('❌ Photo ${i + 1} failed to extract embedding');
         failedPhotos.add(i + 1);
         continue;
       }
 
       embeddings.add(embedding);
+
+      final photoDuration = DateTime.now().difference(photoStartTime);
+      debugPrint('✅ Photo ${i + 1} completed in ${photoDuration.inMilliseconds}ms');
     }
 
     // Check if we have enough valid embeddings
@@ -253,6 +273,8 @@ class FaceRecognitionService {
       );
     }
 
+    debugPrint('');
+    debugPrint('📊 Averaging ${embeddings.length} embeddings...');
     // Average embeddings
     final averagedEmbedding = _embeddingService.averageEmbeddings(embeddings);
 
@@ -263,6 +285,14 @@ class FaceRecognitionService {
     // Convert to bytes for storage
     final embeddingBytes =
         _embeddingService.embeddingToBytes(normalizedEmbedding);
+
+    final totalDuration = DateTime.now().difference(startTime);
+    debugPrint('');
+    debugPrint('✅ TRAINING COMPLETED in ${totalDuration.inSeconds}.${totalDuration.inMilliseconds % 1000}s');
+    debugPrint('   - Successful: ${embeddings.length}/5 photos');
+    debugPrint('   - Failed: ${failedPhotos.isEmpty ? "none" : failedPhotos.join(", ")}');
+    debugPrint('═══════════════════════════════════════════════════');
+    debugPrint('');
 
     return TrainingResult.success(
       embeddingBytes: embeddingBytes,

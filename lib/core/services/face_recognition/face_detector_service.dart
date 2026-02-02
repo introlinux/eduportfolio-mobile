@@ -248,6 +248,9 @@ class FaceDetectorService {
     FaceDetectionResult detection,
   ) async {
     try {
+      debugPrint('🚀 OPTIMIZED: Cropping with pre-computed detection (SKIP detection step)');
+      final startTime = DateTime.now();
+
       // Run heavy image decoding in Isolate (same as detectAndCropFace)
       final image = await Isolate.run(() async {
         final bytes = await imageFile.readAsBytes();
@@ -268,15 +271,20 @@ class FaceDetectorService {
         return null;
       }
 
+      debugPrint('  - Image decoded and oriented: ${image.width}x${image.height}');
+
       // Use the pre-computed detection result (skip detection step!)
       // Perform heavy cropping in Isolate
       final croppedFace = await Isolate.run(() {
         return _alignAndCropFace(image, detection);
       });
 
+      final duration = DateTime.now().difference(startTime);
+      debugPrint('✅ OPTIMIZED crop completed in ${duration.inMilliseconds}ms');
+
       return croppedFace;
     } catch (e) {
-      print('Error cropping face with detection: $e');
+      debugPrint('❌ Error cropping face with detection: $e');
       return null;
     }
   }
