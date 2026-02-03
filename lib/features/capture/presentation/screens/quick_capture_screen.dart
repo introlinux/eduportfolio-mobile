@@ -326,7 +326,9 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         studentsWithFaces,
       );
       
-      // Update live recognition state and debug overlay
+      // Update live recognition state
+      // Debug overlay disabled for performance
+      /*
       if (mounted) {
         // Convert debug image to bytes for display if available
         if (result != null && result.debugCroppedFace != null) {
@@ -337,8 +339,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             debugPrint('Error encoding debug face: $e');
           }
         }
+      }
+      */
 
-        setState(() {
+        if (mounted) {
+          setState(() {
           if (result != null && result.student != null) {
             _liveRecognitionName = result.student!.name;
             _liveRecognizedStudentId = result.student!.id;
@@ -580,6 +585,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
               _cameraController!.value.isInitialized)
             _buildOverlayUI(theme),
 
+          /*
           // DEBUG: Show what the recognizer sees
           if (_debugCroppedFaceBytes != null && !_isCapturing)
             Positioned(
@@ -619,6 +625,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                 ),
               ),
             ),
+          */
         ],
       ),
     );
