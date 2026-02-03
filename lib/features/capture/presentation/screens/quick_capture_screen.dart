@@ -53,6 +53,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   bool _isProcessingFrame = false;
   DateTime? _lastProcessTime;
   bool _isStreamActive = false;
+  
+  // Debug: cropped face image for visualization
+  img.Image? _debugCroppedFace;
+  Uint8List? _debugCroppedFaceBytes;
+  
+  // Orientation state
+  Orientation _currentOrientation = Orientation.portrait;
 
   @override
   void initState() {
@@ -157,37 +164,56 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           );
 
           if (convertedImage != null && mounted) {
-            // Android camera stream (YUV) on this device appears to be upright (angle ~0-15°)
-            // even if dimensions are landscape (640x480).
-            // No rotation needed for the stream.
+            var processedImage = convertedImage;
             
-            // Resize to 640x480 for better face detection accuracy
+            // AUTOMATIC ROTATION CORRECTION (same as face_training_screen)
+            // The camera sensor typically returns landscape images (Width > Height).
+            // But the UI is Portrait. We must rotate the image to be Upright.
+            // This MUST match the rotation applied during training for embeddings to match.
+            
+            // Check if we are using Front or Back camera
+            final isFront = _availableCameras.isNotEmpty && 
+                           _currentCameraIndex < _availableCameras.length &&
+                           _availableCameras[_currentCameraIndex].lensDirection == CameraLensDirection.front;
+
+            if (convertedImage.width > convertedImage.height) {
+               // Sensor image is typically Landscape
+               
+               if (_currentOrientation == Orientation.landscape) {
+                 // Device is in Landscape -> Sensor Image is Upright (usually)
+                 // No rotation needed for standard landscape
+                 // If reverse landscape (180), might need 180 rotation, but
+                 // native_device_orientation is needed for that. 
+                 // For now, assume simplified landscape support (angle 0).
+                 processedImage = convertedImage;
+                 // Note: If resizing below, aspect ratio will be preserved.
+               } else {
+                 // Device is in Portrait -> Sensor Image is rotated 90 deg
+                 // Rotate to make it Upright
+                 final angle = isFront ? 270 : 90;
+                 processedImage = img.copyRotate(convertedImage, angle: angle);
+               }
+            }
+            
+            // Resize for speed while maintaining aspect ratio
+            // Target width 480px (sufficient for face detection)
+            final int targetWidth = 480;
+            final int targetHeight = (processedImage.height * targetWidth / processedImage.width).round();
+
             final img.Image resizedImage = img.copyResize(
-              convertedImage,
-              width: 640,
-              height: 480,
+              processedImage,
+              width: targetWidth,
+              height: targetHeight,
               interpolation: img.Interpolation.linear,
             );
 
-            // Save temporarily as JPEG
-            final tempDir = await getTemporaryDirectory();
-            final tempPath =
-                '${tempDir.path}/frame_${DateTime.now().millisecondsSinceEpoch}.jpg';
-            final file = File(tempPath);
-
-            // Encode with good quality for better face detection
-            final jpegBytes = img.encodeJpg(resizedImage, quality: 90);
-            await file.writeAsBytes(jpegBytes);
-
-            // Perform recognition
-            await _performLiveFaceRecognition(tempPath);
-
-            // Clean up temporary file
-            try {
-              await file.delete();
-            } catch (_) {
-              // Ignore deletion errors
+            // Flip if front camera to correct mirror effect (for recognition consistency)
+            if (isFront) {
+              img.flip(resizedImage, direction: img.FlipDirection.horizontal);
             }
+
+            // Perform recognition directly from image (no JPEG I/O!)
+            await _performLiveFaceRecognition(resizedImage);
           }
         } catch (e) {
           debugPrint('Live recognition error: $e');
@@ -256,7 +282,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     return image;
   }
 
-  Future<void> _performLiveFaceRecognition(String imagePath) async {
+  Future<void> _performLiveFaceRecognition(img.Image image) async {
     try {
       // Get face recognition service
       final faceRecognitionService = ref.read(faceRecognitionServiceProvider);
@@ -294,14 +320,24 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         return;
       }
 
-      // Recognize student in frame
-      final result = await faceRecognitionService.recognizeStudent(
-        File(imagePath),
+      // Recognize student from image (NO file I/O, NO orientation workaround)
+      final result = await faceRecognitionService.recognizeStudentFromImage(
+        image,
         studentsWithFaces,
       );
-
-      // Update live recognition state
+      
+      // Update live recognition state and debug overlay
       if (mounted) {
+        // Convert debug image to bytes for display if available
+        if (result != null && result.debugCroppedFace != null) {
+          try {
+            final pngBytes = img.encodePng(result.debugCroppedFace!);
+            _debugCroppedFaceBytes = Uint8List.fromList(pngBytes);
+          } catch (e) {
+            debugPrint('Error encoding debug face: $e');
+          }
+        }
+
         setState(() {
           if (result != null && result.student != null) {
             _liveRecognitionName = result.student!.name;
@@ -514,6 +550,9 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Update orientation on every build (rotation)
+    _currentOrientation = MediaQuery.of(context).orientation;
+  
     final theme = Theme.of(context);
 
     // Show preview if capturing
@@ -540,6 +579,46 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           if (_cameraController != null &&
               _cameraController!.value.isInitialized)
             _buildOverlayUI(theme),
+
+          // DEBUG: Show what the recognizer sees
+          if (_debugCroppedFaceBytes != null && !_isCapturing)
+            Positioned(
+              left: 20,
+              bottom: 150,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.red, width: 2),
+                  color: Colors.black,
+                ),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Image.memory(
+                        _debugCroppedFaceBytes!,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
+                    ),
+                    Container(
+                      color: Colors.red,
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(2),
+                      child: const Text(
+                        'DEBUG INPUT',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -703,6 +782,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                 ),
               ),
             ),
+
+
 
           const Spacer(),
 

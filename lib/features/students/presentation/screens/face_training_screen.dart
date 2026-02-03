@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -59,7 +58,11 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
   int _detectionImageHeight = 320;
   bool _faceDetected = false;
   String? _faceQualityMessage;
-  
+
+  // Cached frame for stream capture
+  img.Image? _cachedStreamImage;
+  FaceDetectionResult? _cachedDetection;
+
   // Debug visualization
   Uint8List? _debugImageBytes;
   int _debugImageWidth = 0;
@@ -222,6 +225,11 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
                // Already portrait (rare for raw sensor data but possible)
                debugPrint('Live detection - No rotation applied (already portrait)');
             }
+
+            // Flip if front camera to correct mirror effect (for training consistency)
+            if (isFront) {
+               processedImage = img.flip(processedImage, direction: img.FlipDirection.horizontal);
+            }
             
             // Resize for speed while maintaining aspect ratio
             // Now the image is Portrait (e.g., 1080x1920 -> 135x240)
@@ -246,34 +254,30 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
             if (mounted) {
               setState(() {
-                // Debug image update disabled for performance
-                // if (result?.debugImage != null) {
-                //    _debugImageBytes = result!.debugImage;
-                //    _debugImageWidth = 128;
-                //    _debugImageHeight = 128;
-                // }
-
                 if (result != null) {
                   _faceDetected = true;
                   _detectedFaceRect = result.box;
-                  
-                  // Store the dimensions for coordinate mapping
                   _detectionImageWidth = resizedImage.width;
                   _detectionImageHeight = resizedImage.height;
-                  
+
+                  // Cache full-res image + detection for stream capture
+                  _cachedStreamImage = processedImage;
+                  _cachedDetection = result;
+
                   debugPrint('Live detection - Face found at: x=${result.box.x}, y=${result.box.y}, w=${result.box.width}, h=${result.box.height}');
                   debugPrint('Live detection - Detection image size: ${_detectionImageWidth}x${_detectionImageHeight}');
 
-                  // Check simple quality metrics
                   if (result.box.width < 40) {
                     _faceQualityMessage = "Acércate más";
                   } else {
-                    _faceQualityMessage = null; // Good
+                    _faceQualityMessage = null;
                   }
                 } else {
                   _faceDetected = false;
                   _detectedFaceRect = null;
                   _faceQualityMessage = "No se detecta rostro";
+                  _cachedStreamImage = null;
+                  _cachedDetection = null;
                 }
               });
             }
@@ -305,74 +309,68 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
         _isCapturing ||
-        _capturedPhotos.length >= requiredPhotos) {
+        _capturedPhotos.length >= requiredPhotos ||
+        _cachedStreamImage == null ||
+        _cachedDetection == null) {
       return;
     }
 
     debugPrint('');
-    debugPrint('📸 CAPTURE ${_capturedPhotos.length + 1}/5 started...');
+    debugPrint('📸 CAPTURE ${_capturedPhotos.length + 1}/5 (stream) started...');
     final captureStartTime = DateTime.now();
 
     setState(() => _isCapturing = true);
 
     try {
-      // Capture photo
-      debugPrint('  - Taking picture...');
-      final takePictureStart = DateTime.now();
-      final capturedImage = await _cameraController!.takePicture();
-      final file = File(capturedImage.path);
-      final takePictureDuration = DateTime.now().difference(takePictureStart);
-      debugPrint('  - Picture taken in ${takePictureDuration.inMilliseconds}ms');
+      final image = _cachedStreamImage!;
+      final detection = _cachedDetection!;
 
-      // Validate that photo contains a face
-      if (mounted) {
-        setState(
-          () => _isProcessing = true,
-        ); // Reuse blocking flag locally? Or just blocking UI
-      }
+      // Map detection coordinates from resized space (160xN) to full image space
+      final scaleX = image.width / _detectionImageWidth.toDouble();
+      final scaleY = image.height / _detectionImageHeight.toDouble();
 
-      // Process image in memory (read, decode, detect) - ONLY ONCE
-      debugPrint('  - Processing image in memory...');
-      final processingStart = DateTime.now();
+      final clampedX = (detection.box.x * scaleX).round().clamp(0, image.width - 1);
+      final clampedY = (detection.box.y * scaleY).round().clamp(0, image.height - 1);
 
-      final faceDetector = ref.read(faceDetectorServiceProvider);
-      final result = await faceDetector.detectFaceFromFile(file);
+      final mappedDetection = FaceDetectionResult(
+        box: FaceRect(
+          x: clampedX,
+          y: clampedY,
+          width: (detection.box.width * scaleX).round().clamp(1, image.width - clampedX),
+          height: (detection.box.height * scaleY).round().clamp(1, image.height - clampedY),
+        ),
+        rightEye: detection.rightEye != null
+            ? Point(detection.rightEye!.x * scaleX, detection.rightEye!.y * scaleY)
+            : null,
+        leftEye: detection.leftEye != null
+            ? Point(detection.leftEye!.x * scaleX, detection.leftEye!.y * scaleY)
+            : null,
+      );
 
-      final processingDuration = DateTime.now().difference(processingStart);
-      debugPrint('  - Image processed in ${processingDuration.inMilliseconds}ms');
+      debugPrint('  - Cached image: ${image.width}x${image.height}');
+      debugPrint('  - Mapped box: ${mappedDetection.box}');
 
-      // Delete temporary file immediately (we have image in memory now)
-      try {
-        await file.delete();
-      } catch (_) {}
+      // NOTE: The Android orientation workaround is NOT needed here because
+      // the image from the camera stream was already rotated during live detection
+      // (lines 219-227). Applying it again would cause double rotation and break
+      // face recognition. The workaround only applies to JPEG files loaded from disk.
+      final finalImage = image;
+      final finalDetection = mappedDetection;
 
-      if (result == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No se detectó ningún rostro. Inténtalo de nuevo.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(milliseconds: 1500),
-            ),
-          );
-        }
-        setState(() => _isCapturing = false);
-        return;
-      }
-
-      // Store processed image + detection in memory (NO disk I/O!)
+      // Store and clear cache to prevent re-capture of the same frame
       setState(() {
         _capturedPhotos.add(_CapturedPhoto(
-          image: result.processedImage,
-          detection: result.detection,
+          image: finalImage,
+          detection: finalDetection,
         ));
+        _cachedStreamImage = null;
+        _cachedDetection = null;
       });
 
       final captureTotalDuration = DateTime.now().difference(captureStartTime);
       debugPrint('✅ CAPTURE ${_capturedPhotos.length}/5 completed in ${captureTotalDuration.inMilliseconds}ms');
       debugPrint('');
 
-      // Show feedback
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -385,7 +383,6 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         );
       }
 
-      // If we have all photos, process them
       if (_capturedPhotos.length >= requiredPhotos) {
         await _processPhotos();
       }
@@ -402,7 +399,6 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       if (mounted) {
         setState(() {
           _isCapturing = false;
-          _isProcessing = false;
         });
       }
     }
@@ -759,6 +755,9 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
   Widget _buildOverlayUI(ThemeData theme) {
     final progress = _capturedPhotos.length / requiredPhotos;
+    final bool canCapture = !_isCapturing &&
+        _capturedPhotos.length < requiredPhotos &&
+        _cachedDetection != null;
 
     return SafeArea(
       child: Column(
@@ -876,26 +875,23 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
 
                 // Capture button
                 GestureDetector(
-                  onTap:
-                      _isCapturing || _capturedPhotos.length >= requiredPhotos
-                      ? null
-                      : _capturePhoto,
+                  onTap: canCapture ? _capturePhoto : null,
                   child: Container(
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: _capturedPhotos.length >= requiredPhotos
-                            ? Colors.grey
-                            : Colors.white,
+                        color: canCapture ? Colors.white : Colors.grey,
                         width: 4,
                       ),
                       color: _isCapturing
                           ? Colors.grey
                           : (_capturedPhotos.length >= requiredPhotos
                                 ? Colors.green
-                                : Colors.white.withValues(alpha: 0.3)),
+                                : (canCapture
+                                      ? Colors.white.withValues(alpha: 0.3)
+                                      : Colors.grey)),
                     ),
                     child: _isCapturing
                         ? const Center(

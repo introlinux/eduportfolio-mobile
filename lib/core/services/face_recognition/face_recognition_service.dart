@@ -16,8 +16,9 @@ class FaceRecognitionService {
 
   /// Similarity threshold for face matching (0.0 to 1.0)
   /// Higher = more strict matching
-  /// 0.80 provides stricter matching to reduce false positives
-  static const double similarityThreshold = 0.80;
+  /// 0.70 allows recognition with normal variations (lighting, angle, expression)
+  /// while maintaining reasonable accuracy
+  static const double similarityThreshold = 0.70;
 
   FaceRecognitionService(this._faceDetector, this._embeddingService);
 
@@ -100,6 +101,115 @@ class FaceRecognitionService {
       return RecognitionResult.noMatch(confidence: bestSimilarity);
     } catch (e) {
       print('Error recognizing student: $e');
+      return RecognitionResult.error(e.toString());
+    }
+  }
+
+  /// Recognize student from image already in memory (OPTIMIZED)
+  ///
+  /// This method is optimized for camera stream images that are already
+  /// processed and rotated in memory. It avoids:
+  /// - File I/O (no JPEG encoding/decoding)
+  /// - Android orientation workaround (image already correctly oriented)
+  ///
+  /// Use this for live recognition from camera stream.
+  /// Use recognizeStudent() for images loaded from disk.
+  Future<RecognitionResult?> recognizeStudentFromImage(
+    img.Image image,
+    List<Student> studentsWithFaceData,
+  ) async {
+    try {
+      debugPrint('');
+      debugPrint('🔍 RECOGNITION FROM IMAGE STARTED');
+      debugPrint('  - Image size: ${image.width}x${image.height}');
+      debugPrint('  - Students to compare: ${studentsWithFaceData.length}');
+
+      // Step 1: Detect face from image (no file I/O)
+      debugPrint('  - Step 1: Detecting face...');
+      final detection = await _faceDetector.detectFaceFromImage(image);
+      if (detection == null) {
+        debugPrint('  ❌ No face detected');
+        return RecognitionResult.noFaceDetected();
+      }
+      debugPrint('  ✅ Face detected: ${detection.box}');
+
+      // Step 2: Crop face using detection (no orientation workaround)
+      debugPrint('  - Step 2: Cropping face...');
+      final face = await _faceDetector.cropFaceWithDetection(image, detection);
+      if (face == null) {
+        debugPrint('  ❌ Face crop failed');
+        return RecognitionResult.noFaceDetected();
+      }
+      debugPrint('  ✅ Face cropped: ${face.width}x${face.height}');
+
+      // Step 3: Extract embedding
+      debugPrint('  - Step 3: Extracting embedding...');
+      final embedding = await _embeddingService.extractEmbedding(face);
+      if (embedding == null) {
+        debugPrint('  ❌ Embedding extraction failed');
+        return RecognitionResult.extractionFailed();
+      }
+      debugPrint('  ✅ Embedding extracted: ${embedding.length} dimensions');
+      debugPrint('  - First 5 values: ${embedding.take(5).toList()}');
+
+      // Step 4: Normalize embedding
+      debugPrint('  - Step 4: Normalizing embedding...');
+      final normalizedEmbedding =
+          _embeddingService.normalizeEmbedding(embedding);
+      debugPrint('  ✅ Embedding normalized');
+      debugPrint('  - First 5 normalized: ${normalizedEmbedding.take(5).toList()}');
+
+      // Step 5: Compare with all students
+      debugPrint('  - Step 5: Comparing with ${studentsWithFaceData.length} students...');
+      Student? bestMatch;
+      double bestSimilarity = 0.0;
+
+      for (final student in studentsWithFaceData) {
+        if (student.faceEmbeddings == null) continue;
+
+        // Convert stored bytes to embedding
+        final studentEmbedding =
+            _embeddingService.bytesToEmbedding(student.faceEmbeddings!);
+
+        // Calculate similarity
+        final similarity = calculateSimilarity(
+          normalizedEmbedding,
+          studentEmbedding,
+        );
+
+        debugPrint('    - ${student.name}: similarity = ${similarity.toStringAsFixed(4)}');
+
+        if (similarity > bestSimilarity) {
+          bestSimilarity = similarity;
+          bestMatch = student;
+        }
+      }
+
+      debugPrint('');
+      debugPrint('  📊 BEST MATCH: ${bestMatch?.name ?? "none"}');
+      debugPrint('  📊 SIMILARITY: ${bestSimilarity.toStringAsFixed(4)}');
+      debugPrint('  📊 THRESHOLD: ${similarityThreshold.toStringAsFixed(4)}');
+
+      // Step 6: Check if best match exceeds threshold
+      if (bestMatch != null && bestSimilarity >= similarityThreshold) {
+        debugPrint('  ✅ RECOGNIZED: ${bestMatch.name}');
+        debugPrint('');
+        return RecognitionResult.recognized(
+          student: bestMatch,
+          confidence: bestSimilarity,
+          debugCroppedFace: face,
+        );
+      }
+
+      debugPrint('  ❌ NO MATCH (similarity too low)');
+      debugPrint('');
+      return RecognitionResult.noMatch(
+        confidence: bestSimilarity,
+        debugCroppedFace: face,
+      );
+    } catch (e) {
+      debugPrint('  ❌ ERROR: $e');
+      debugPrint('');
       return RecognitionResult.error(e.toString());
     }
   }
@@ -187,15 +297,20 @@ class FaceRecognitionService {
     }
 
     // Average embeddings
+    debugPrint('📊 Averaging ${embeddings.length} embeddings...');
     final averagedEmbedding = _embeddingService.averageEmbeddings(embeddings);
+    debugPrint('  - First 5 averaged values: ${averagedEmbedding.take(5).toList()}');
 
     // Normalize
+    debugPrint('📊 Normalizing averaged embedding...');
     final normalizedEmbedding =
         _embeddingService.normalizeEmbedding(averagedEmbedding);
+    debugPrint('  - First 5 normalized values: ${normalizedEmbedding.take(5).toList()}');
 
     // Convert to bytes for storage
     final embeddingBytes =
         _embeddingService.embeddingToBytes(normalizedEmbedding);
+    debugPrint('📊 Embedding converted to ${embeddingBytes.length} bytes for storage');
 
     return TrainingResult.success(
       embeddingBytes: embeddingBytes,
@@ -316,29 +431,37 @@ class RecognitionResult {
   final Student? student;
   final double confidence;
   final String? error;
+  final img.Image? debugCroppedFace;
 
   RecognitionResult._({
     required this.status,
     this.student,
     this.confidence = 0.0,
     this.error,
+    this.debugCroppedFace,
   });
 
   factory RecognitionResult.recognized({
     required Student student,
     required double confidence,
+    img.Image? debugCroppedFace,
   }) {
     return RecognitionResult._(
       status: RecognitionStatus.recognized,
       student: student,
       confidence: confidence,
+      debugCroppedFace: debugCroppedFace,
     );
   }
 
-  factory RecognitionResult.noMatch({double confidence = 0.0}) {
+  factory RecognitionResult.noMatch({
+    double confidence = 0.0,
+    img.Image? debugCroppedFace,
+  }) {
     return RecognitionResult._(
       status: RecognitionStatus.noMatch,
       confidence: confidence,
+      debugCroppedFace: debugCroppedFace,
     );
   }
 
@@ -346,8 +469,11 @@ class RecognitionResult {
     return RecognitionResult._(status: RecognitionStatus.noFaceDetected);
   }
 
-  factory RecognitionResult.extractionFailed() {
-    return RecognitionResult._(status: RecognitionStatus.extractionFailed);
+  factory RecognitionResult.extractionFailed({img.Image? debugCroppedFace}) {
+    return RecognitionResult._(
+      status: RecognitionStatus.extractionFailed,
+      debugCroppedFace: debugCroppedFace,
+    );
   }
 
   factory RecognitionResult.error(String error) {
