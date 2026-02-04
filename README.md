@@ -26,7 +26,7 @@ Por una parte un Kiosko de Evidencias, una **estación de trabajo digital** que 
 2. Mostrar sus trabajos a una cámara para su **captura y digitalización**.
 3. Ver cómo el sistema **clasifica automáticamente** el trabajo en su portfolio digital por asignatura.
 
-Y, por otra parte una aplicación móvil de recolección de evidencias por clase mientras los estudiantes están trabajando que permite:
+Y, por otra parte, una **aplicación móvil** de recolección de evidencias por clase mientras los estudiantes están trabajando que permite:
 1. Recoger imágenes, capturas de audio y vídeo sobre el trabajo del alumnado in-situ.
 2. Clasificar las capturas creando un portfolio digital por asignatura.
 3. Mostrar los trabajos en una galería para evaluarlos o mostrarlos a las familias.
@@ -507,7 +507,8 @@ La aplicación soporta los siguientes idiomas:
 
 ### Fase 2 (Futuro)
 - [ ] Sincronización con aplicación de escritorio
-- [ ] Clasificación automática por IA (YOLO)
+- [ ] Clasificación automática por IA (YOLO) de evidencias
+- [ ] Incorporación de evidencias de vídeo y audio
 - [ ] Transcripción de audios
 - [ ] Anotaciones del docente
 - [ ] Compartir evidencias con padres
