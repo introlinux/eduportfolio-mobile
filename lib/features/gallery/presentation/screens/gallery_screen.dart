@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
 import 'package:eduportfolio/features/gallery/presentation/widgets/evidence_card.dart';
+import 'package:eduportfolio/features/gallery/presentation/widgets/share_preview_dialog.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:eduportfolio/features/subjects/presentation/providers/subject_providers.dart';
@@ -462,7 +465,44 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
           ),
         ],
       ),
+      // Share selected
+      IconButton(
+        icon: const Icon(Icons.share),
+        tooltip: 'Compartir seleccionadas',
+        onPressed: () => _handleShareSelected(context, ref),
+      ),
     ];
+  }
+
+  Future<void> _handleShareSelected(BuildContext context, WidgetRef ref) async {
+    final evidencesAsync = ref.read(filteredEvidencesProvider);
+    final evidences = evidencesAsync.value;
+
+    if (evidences == null) return;
+
+    // Filter selected evidences
+    final selectedEvidences = evidences
+        .where((e) => _selectedEvidenceIds.contains(e.id))
+        .toList();
+
+    if (selectedEvidences.isEmpty) return;
+
+    // Convert to Files
+    final files = selectedEvidences.map((e) => File(e.filePath)).toList();
+    final privacyService = ref.read(privacyServiceProvider);
+
+    // Show preview dialog
+    await showDialog(
+      context: context,
+      builder: (context) => SharePreviewDialog(
+        originalFiles: files,
+        privacyService: privacyService,
+      ),
+    );
+    
+    // We don't automatically clear selection after share, users might want to keep context
+    // or maybe they cancelled. Let them manually clear if desired.
+    // Or we could ask: "Exit selection mode?" No, simpler is better.
   }
 
   Future<void> _handleAssignSubject(BuildContext context, WidgetRef ref) async {

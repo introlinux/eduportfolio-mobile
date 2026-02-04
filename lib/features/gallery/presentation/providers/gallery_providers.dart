@@ -7,6 +7,9 @@ import 'package:eduportfolio/features/gallery/domain/usecases/get_all_evidences_
 import 'package:eduportfolio/features/gallery/domain/usecases/get_evidence_by_id_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/get_evidences_by_subject_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/update_evidences_subject_usecase.dart';
+import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
+import 'package:eduportfolio/features/gallery/domain/services/privacy_service.dart';
+import 'package:eduportfolio/features/gallery/domain/usecases/update_evidences_subject_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ============================================================================
@@ -69,6 +72,12 @@ final assignEvidencesToStudentUseCaseProvider =
 final deleteEvidencesUseCaseProvider = Provider<DeleteEvidencesUseCase>((ref) {
   final repository = ref.watch(evidenceRepositoryProvider);
   return DeleteEvidencesUseCase(repository);
+});
+
+/// Provider for PrivacyService
+final privacyServiceProvider = Provider<PrivacyService>((ref) {
+  final faceDetectorService = ref.watch(faceDetectorServiceProvider);
+  return PrivacyService(faceDetectorService);
 });
 
 // ============================================================================

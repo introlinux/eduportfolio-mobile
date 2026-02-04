@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
+
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
+import 'package:eduportfolio/features/gallery/presentation/widgets/share_preview_dialog.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:eduportfolio/features/subjects/presentation/providers/subject_providers.dart';
@@ -176,6 +178,11 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
               });
             },
             tooltip: _showMetadata ? 'Ocultar información' : 'Mostrar información',
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => _handleShare(context, ref),
+            tooltip: 'Compartir',
           ),
           IconButton(
             icon: const Icon(Icons.delete),
@@ -582,9 +589,24 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
               content: Text('Error al eliminar: $e'),
               backgroundColor: Colors.red,
             ),
+
           );
         }
       }
     }
+  }
+
+  Future<void> _handleShare(BuildContext context, WidgetRef ref) async {
+    final evidence = _currentEvidence;
+    final file = File(evidence.filePath);
+    final privacyService = ref.read(privacyServiceProvider);
+
+    await showDialog(
+      context: context,
+      builder: (context) => SharePreviewDialog(
+        originalFiles: [file],
+        privacyService: privacyService,
+      ),
+    );
   }
 }
