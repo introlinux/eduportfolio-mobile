@@ -21,12 +21,14 @@ class SaveEvidenceUseCase {
   /// - [tempImagePath]: Temporary path from image_picker
   /// - [subjectId]: ID of the subject this evidence belongs to
   /// - [studentId]: Optional student ID if already assigned
+  /// - [courseId]: Optional course ID for the active course
   ///
   /// Returns the ID of the created evidence
   Future<int> call({
     required String tempImagePath,
     required int subjectId,
     int? studentId,
+    int? courseId,
   }) async {
     // Get app's documents directory for permanent storage
     final directory = await getApplicationDocumentsDirectory();
@@ -78,6 +80,7 @@ class SaveEvidenceUseCase {
       captureDate: now,
       createdAt: now,
       studentId: studentId,
+      courseId: courseId,
       fileSize: fileSize,
       // Mark as reviewed if facial recognition assigned a student
       // Only evidences without student assignment need manual review

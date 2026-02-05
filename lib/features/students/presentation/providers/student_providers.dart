@@ -7,6 +7,7 @@ import 'package:eduportfolio/features/students/domain/usecases/get_student_by_id
 import 'package:eduportfolio/features/students/domain/usecases/get_students_by_course_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/update_student_face_data_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/update_student_usecase.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ============================================================================
@@ -70,16 +71,22 @@ final selectedCourseFilterProvider = StateProvider<int?>((ref) => null);
 
 /// Provider to get students with optional course filter
 final filteredStudentsProvider = FutureProvider<List<Student>>((ref) async {
-  final selectedCourseId = ref.watch(selectedCourseFilterProvider);
+  var effectiveCourseId = ref.watch(selectedCourseFilterProvider);
 
-  if (selectedCourseId == null) {
+  // If no explicit filter, fall back to active course
+  if (effectiveCourseId == null) {
+    final activeCourseAsync = ref.watch(activeCourseProvider);
+    effectiveCourseId = activeCourseAsync.value?.id;
+  }
+
+  if (effectiveCourseId == null) {
     // No filter, get all students
     final getAllUseCase = ref.watch(getAllStudentsUseCaseProvider);
     return getAllUseCase();
   } else {
     // Filter by course
     final getByCourseUseCase = ref.watch(getStudentsByCourseUseCaseProvider);
-    return getByCourseUseCase(selectedCourseId);
+    return getByCourseUseCase(effectiveCourseId);
   }
 });
 

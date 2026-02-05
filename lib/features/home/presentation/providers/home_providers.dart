@@ -3,6 +3,7 @@ import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/home/domain/usecases/count_pending_evidences_usecase.dart';
 import 'package:eduportfolio/features/home/domain/usecases/get_default_subjects_usecase.dart';
 import 'package:eduportfolio/features/home/domain/usecases/get_storage_info_usecase.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ============================================================================
@@ -40,9 +41,13 @@ final defaultSubjectsProvider = FutureProvider<List<Subject>>((ref) async {
 });
 
 /// Provider to count pending evidences
+/// Filters by active course if one is set
 final pendingEvidencesCountProvider = FutureProvider<int>((ref) async {
   final useCase = ref.watch(countPendingEvidencesUseCaseProvider);
-  return useCase();
+  final activeCourseAsync = ref.watch(activeCourseProvider);
+  final activeCourse = activeCourseAsync.value;
+
+  return useCase(courseId: activeCourse?.id);
 });
 
 /// Provider to get storage info

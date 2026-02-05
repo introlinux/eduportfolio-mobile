@@ -199,11 +199,27 @@ class EvidenceLocalDataSource {
   }
 
   /// Count evidences needing review
-  Future<int> countEvidencesNeedingReview() async {
+  /// If [courseId] is provided, only count evidences for that course (including orphaned ones with courseId NULL)
+  Future<int> countEvidencesNeedingReview({int? courseId}) async {
     final db = await _databaseHelper.database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM evidences WHERE student_id IS NULL OR is_reviewed = 0',
-    );
+
+    String query;
+    List<dynamic> args = [];
+
+    if (courseId != null) {
+      // Filter by course: include orphaned (course_id IS NULL) or matching course
+      query = '''
+        SELECT COUNT(*) as count FROM evidences
+        WHERE (student_id IS NULL OR is_reviewed = 0)
+        AND (course_id IS NULL OR course_id = ?)
+      ''';
+      args = [courseId];
+    } else {
+      // No course filter
+      query = 'SELECT COUNT(*) as count FROM evidences WHERE student_id IS NULL OR is_reviewed = 0';
+    }
+
+    final result = await db.rawQuery(query, args);
     return Sqflite.firstIntValue(result) ?? 0;
   }
 

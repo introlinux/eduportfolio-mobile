@@ -2,9 +2,11 @@ import 'package:eduportfolio/core/domain/entities/course.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/courses/domain/usecases/archive_course_usecase.dart';
 import 'package:eduportfolio/features/courses/domain/usecases/create_course_usecase.dart';
+import 'package:eduportfolio/features/courses/domain/usecases/delete_course_with_files_usecase.dart';
 import 'package:eduportfolio/features/courses/domain/usecases/get_active_course_usecase.dart';
 import 'package:eduportfolio/features/courses/domain/usecases/get_all_courses_usecase.dart';
 import 'package:eduportfolio/features/courses/domain/usecases/set_active_course_usecase.dart';
+import 'package:eduportfolio/features/courses/domain/usecases/unarchive_course_usecase.dart';
 import 'package:eduportfolio/features/courses/domain/usecases/update_course_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -48,6 +50,18 @@ final setActiveCourseUseCaseProvider = Provider<SetActiveCourseUseCase>((ref) {
   return SetActiveCourseUseCase(repository);
 });
 
+/// Provider for UnarchiveCourseUseCase
+final unarchiveCourseUseCaseProvider = Provider<UnarchiveCourseUseCase>((ref) {
+  final repository = ref.watch(courseRepositoryProvider);
+  return UnarchiveCourseUseCase(repository);
+});
+
+/// Provider for DeleteCourseWithFilesUseCase
+final deleteCourseWithFilesUseCaseProvider = Provider<DeleteCourseWithFilesUseCase>((ref) {
+  final repository = ref.watch(courseRepositoryProvider);
+  return DeleteCourseWithFilesUseCase(repository);
+});
+
 // ============================================================================
 // DATA PROVIDERS
 // ============================================================================
@@ -62,6 +76,18 @@ final activeCourseProvider = FutureProvider<Course?>((ref) async {
 final allCoursesProvider = FutureProvider<List<Course>>((ref) async {
   final useCase = ref.watch(getAllCoursesUseCaseProvider);
   return useCase();
+});
+
+/// Provider to get active (non-archived) courses
+final activeCoursesProvider = FutureProvider<List<Course>>((ref) async {
+  final allCourses = await ref.watch(allCoursesProvider.future);
+  return allCourses.where((course) => course.endDate == null).toList();
+});
+
+/// Provider to get archived courses
+final archivedCoursesProvider = FutureProvider<List<Course>>((ref) async {
+  final allCourses = await ref.watch(allCoursesProvider.future);
+  return allCourses.where((course) => course.endDate != null).toList();
 });
 
 /// Provider to count students in a course

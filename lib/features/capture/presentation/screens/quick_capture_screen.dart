@@ -469,11 +469,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   Future<void> _saveEvidence(String imagePath, {int? studentId}) async {
     try {
       final saveUseCase = ref.read(saveEvidenceUseCaseProvider);
+      final activeCourse = await ref.read(activeCourseProvider.future);
 
       await saveUseCase(
         tempImagePath: imagePath,
         subjectId: widget.subjectId,
         studentId: studentId,
+        courseId: activeCourse?.id,
       );
 
       // Invalidate home providers to refresh counts immediately

@@ -7,6 +7,7 @@ class EvidenceModel extends Evidence {
   const EvidenceModel({
     required super.subjectId, required super.type, required super.filePath, required super.captureDate, required super.createdAt, super.id,
     super.studentId,
+    super.courseId,
     super.thumbnailPath,
     super.fileSize,
     super.duration,
@@ -19,6 +20,7 @@ class EvidenceModel extends Evidence {
     return EvidenceModel(
       id: entity.id,
       studentId: entity.studentId,
+      courseId: entity.courseId,
       subjectId: entity.subjectId,
       type: entity.type,
       filePath: entity.filePath,
@@ -37,6 +39,7 @@ class EvidenceModel extends Evidence {
     return EvidenceModel(
       id: map['id'] as int?,
       studentId: map['student_id'] as int?,
+      courseId: map['course_id'] as int?,
       subjectId: map['subject_id'] as int,
       type: EvidenceType.fromString(map['type'] as String),
       filePath: map['file_path'] as String,
@@ -55,6 +58,7 @@ class EvidenceModel extends Evidence {
     return {
       if (id != null) 'id': id,
       'student_id': studentId, // Include even if null to allow unsetting
+      'course_id': courseId, // Include even if null
       'subject_id': subjectId,
       'type': type.toDbString(),
       'file_path': filePath,
@@ -73,6 +77,7 @@ class EvidenceModel extends Evidence {
     return Evidence(
       id: id,
       studentId: studentId,
+      courseId: courseId,
       subjectId: subjectId,
       type: type,
       filePath: filePath,
@@ -88,6 +93,6 @@ class EvidenceModel extends Evidence {
 
   @override
   String toString() {
-    return 'EvidenceModel(id: $id, studentId: $studentId, subjectId: $subjectId, type: $type, filePath: $filePath, captureDate: $captureDate, isReviewed: $isReviewed, createdAt: $createdAt)';
+    return 'EvidenceModel(id: $id, studentId: $studentId, courseId: $courseId, subjectId: $subjectId, type: $type, filePath: $filePath, captureDate: $captureDate, isReviewed: $isReviewed, createdAt: $createdAt)';
   }
 }

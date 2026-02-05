@@ -177,9 +177,9 @@ class EvidenceRepositoryImpl implements EvidenceRepository {
   }
 
   @override
-  Future<int> countEvidencesNeedingReview() async {
+  Future<int> countEvidencesNeedingReview({int? courseId}) async {
     try {
-      return await _localDataSource.countEvidencesNeedingReview();
+      return await _localDataSource.countEvidencesNeedingReview(courseId: courseId);
     } catch (e) {
       throw DatabaseException('Error counting evidences needing review: $e');
     }

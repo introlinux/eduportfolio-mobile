@@ -51,6 +51,7 @@ class _Undefined {
 class Evidence {
   final int? id;
   final int? studentId;
+  final int? courseId;
   final int subjectId;
   final EvidenceType type;
   final String filePath;
@@ -65,6 +66,7 @@ class Evidence {
   const Evidence({
     required this.subjectId, required this.type, required this.filePath, required this.captureDate, required this.createdAt, this.id,
     this.studentId,
+    this.courseId,
     this.thumbnailPath,
     this.fileSize,
     this.duration,
@@ -79,6 +81,7 @@ class Evidence {
   Evidence copyWith({
     int? id,
     Object? studentId = const _Undefined(),
+    Object? courseId = const _Undefined(),
     int? subjectId,
     EvidenceType? type,
     String? filePath,
@@ -93,6 +96,7 @@ class Evidence {
     return Evidence(
       id: id ?? this.id,
       studentId: studentId is _Undefined ? this.studentId : studentId as int?,
+      courseId: courseId is _Undefined ? this.courseId : courseId as int?,
       subjectId: subjectId ?? this.subjectId,
       type: type ?? this.type,
       filePath: filePath ?? this.filePath,
@@ -127,6 +131,7 @@ class Evidence {
     return other is Evidence &&
         other.id == id &&
         other.studentId == studentId &&
+        other.courseId == courseId &&
         other.subjectId == subjectId &&
         other.type == type &&
         other.filePath == filePath &&
@@ -143,6 +148,7 @@ class Evidence {
   int get hashCode {
     return id.hashCode ^
         studentId.hashCode ^
+        courseId.hashCode ^
         subjectId.hashCode ^
         type.hashCode ^
         filePath.hashCode ^
@@ -157,6 +163,6 @@ class Evidence {
 
   @override
   String toString() {
-    return 'Evidence(id: $id, studentId: $studentId, subjectId: $subjectId, type: $type, filePath: $filePath, captureDate: $captureDate, isReviewed: $isReviewed, createdAt: $createdAt)';
+    return 'Evidence(id: $id, studentId: $studentId, courseId: $courseId, subjectId: $subjectId, type: $type, filePath: $filePath, captureDate: $captureDate, isReviewed: $isReviewed, createdAt: $createdAt)';
   }
 }

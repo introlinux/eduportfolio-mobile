@@ -294,21 +294,24 @@ class _CourseFormScreenState extends ConsumerState<CourseFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Active checkbox
-                    CheckboxListTile(
-                      value: _setAsActive,
-                      onChanged: _isSaving
-                          ? null
-                          : (value) {
-                              setState(() => _setAsActive = value ?? true);
-                            },
-                      title: const Text('Establecer como curso activo'),
-                      subtitle: const Text(
-                        'Los nuevos estudiantes se añadirán a este curso',
+                    // Active checkbox (only show when creating, not when editing)
+                    if (!isEditing) ...[
+                      CheckboxListTile(
+                        value: _setAsActive,
+                        onChanged: _isSaving
+                            ? null
+                            : (value) {
+                                setState(() => _setAsActive = value ?? true);
+                              },
+                        title: const Text('Establecer como curso activo'),
+                        subtitle: const Text(
+                          'Los nuevos estudiantes se añadirán a este curso',
+                        ),
+                        contentPadding: EdgeInsets.zero,
                       ),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    const SizedBox(height: 32),
+                      const SizedBox(height: 16),
+                    ],
+                    const SizedBox(height: 16),
                     // Save button
                     FilledButton.icon(
                       onPressed: _isSaving ? null : _saveCourse,

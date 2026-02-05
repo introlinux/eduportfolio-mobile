@@ -57,7 +57,7 @@ abstract class EvidenceRepository {
   Future<int> countEvidencesByStudent(int studentId);
 
   /// Count evidences needing review
-  Future<int> countEvidencesNeedingReview();
+  Future<int> countEvidencesNeedingReview({int? courseId});
 
   /// Get total storage size in bytes
   Future<int> getTotalStorageSize();

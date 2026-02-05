@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/capture/presentation/providers/capture_providers.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -229,11 +230,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
     try {
       final saveEvidenceUseCase = ref.read(saveEvidenceUseCaseProvider);
+      final activeCourse = await ref.read(activeCourseProvider.future);
 
       // Save evidence
       await saveEvidenceUseCase(
         tempImagePath: imagePath,
         subjectId: subjectId,
+        courseId: activeCourse?.id,
       );
 
       // Invalidate home providers to refresh counts

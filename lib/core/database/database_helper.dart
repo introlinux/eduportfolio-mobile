@@ -84,6 +84,7 @@ class DatabaseHelper {
         CREATE TABLE evidences (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           student_id INTEGER,
+          course_id INTEGER,
           subject_id INTEGER NOT NULL,
           type TEXT NOT NULL,
           file_path TEXT NOT NULL,
@@ -95,6 +96,7 @@ class DatabaseHelper {
           notes TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL,
+          FOREIGN KEY (course_id) REFERENCES courses(id),
           FOREIGN KEY (subject_id) REFERENCES subjects(id)
         )
       ''');
@@ -105,6 +107,9 @@ class DatabaseHelper {
       );
       await txn.execute(
         'CREATE INDEX idx_evidences_student_id ON evidences(student_id)',
+      );
+      await txn.execute(
+        'CREATE INDEX idx_evidences_course_id ON evidences(course_id)',
       );
       await txn.execute(
         'CREATE INDEX idx_evidences_subject_id ON evidences(subject_id)',
@@ -132,11 +137,32 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     Logger.info('Upgrading database from v$oldVersion to v$newVersion');
 
-    // Add migration logic here when needed
-    // Example:
-    // if (oldVersion < 2) {
-    //   await db.execute('ALTER TABLE ...');
-    // }
+    if (oldVersion < 2) {
+      Logger.info('Migrating to v2: Adding course_id to evidences');
+      await db.transaction((txn) async {
+        // Add course_id column
+        await txn.execute(
+          'ALTER TABLE evidences ADD COLUMN course_id INTEGER REFERENCES courses(id)',
+        );
+
+        // Backfill assigned evidences with course_id from students
+        await txn.execute('''
+          UPDATE evidences
+          SET course_id = (
+            SELECT course_id
+            FROM students
+            WHERE students.id = evidences.student_id
+          )
+          WHERE student_id IS NOT NULL
+        ''');
+
+        // Create index for course_id
+        await txn.execute(
+          'CREATE INDEX idx_evidences_course_id ON evidences(course_id)',
+        );
+      });
+      Logger.info('Migration to v2 completed');
+    }
   }
 
   /// Called when database is opened

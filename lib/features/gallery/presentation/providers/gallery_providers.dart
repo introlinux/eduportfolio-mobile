@@ -10,6 +10,7 @@ import 'package:eduportfolio/features/gallery/domain/usecases/update_evidences_s
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
 import 'package:eduportfolio/features/gallery/domain/services/privacy_service.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/update_evidences_subject_usecase.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ============================================================================
@@ -108,10 +109,17 @@ final filteredEvidencesProvider = FutureProvider.autoDispose<List<Evidence>>((re
   final selectedSubjectId = ref.watch(selectedSubjectFilterProvider);
   final selectedStudentId = ref.watch(selectedStudentFilterProvider);
   final reviewStatusFilter = ref.watch(reviewStatusFilterProvider);
+  final activeCourseAsync = ref.watch(activeCourseProvider);
+  final activeCourse = activeCourseAsync.value;
 
   // Get all evidences first
   final getAllUseCase = ref.watch(getAllEvidencesUseCaseProvider);
   var evidences = await getAllUseCase();
+
+  // Apply course filter if active course exists
+  if (activeCourse != null) {
+    evidences = evidences.where((e) => e.courseId == null || e.courseId == activeCourse.id).toList();
+  }
 
   // Apply subject filter if selected
   if (selectedSubjectId != null) {

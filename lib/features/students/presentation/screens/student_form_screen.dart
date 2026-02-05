@@ -1,5 +1,6 @@
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -122,6 +123,10 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
 
       // Invalidate providers to refresh lists
       ref.invalidate(filteredStudentsProvider);
+      // Invalidate student count for the course
+      if (activeCourse.id != null) {
+        ref.invalidate(courseStudentCountProvider(activeCourse.id!));
+      }
 
       if (mounted) {
         Navigator.of(context).pop();

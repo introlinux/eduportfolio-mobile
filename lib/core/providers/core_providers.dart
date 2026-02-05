@@ -56,7 +56,8 @@ final imageCaptureDataSourceProvider =
 /// Provider for CourseRepository
 final courseRepositoryProvider = Provider<CourseRepository>((ref) {
   final dataSource = ref.watch(courseLocalDataSourceProvider);
-  return CourseRepositoryImpl(dataSource);
+  final evidenceDataSource = ref.watch(evidenceLocalDataSourceProvider);
+  return CourseRepositoryImpl(dataSource, evidenceDataSource);
 });
 
 /// Provider for StudentRepository

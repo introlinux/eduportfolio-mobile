@@ -116,6 +116,20 @@ class CourseLocalDataSource {
     );
   }
 
+  /// Unarchive course (remove end_date, keep inactive)
+  Future<int> unarchiveCourse(int id) async {
+    final db = await _databaseHelper.database;
+    return db.update(
+      'courses',
+      {
+        'end_date': null,
+        'is_active': 0, // Keep inactive, user can activate manually
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   /// Count courses
   Future<int> countCourses() async {
     final db = await _databaseHelper.database;

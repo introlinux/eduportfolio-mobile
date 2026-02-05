@@ -3,6 +3,7 @@ import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/capture_screen.dart';
 import 'package:eduportfolio/features/capture/presentation/screens/quick_capture_screen.dart';
+import 'package:eduportfolio/features/courses/presentation/screens/archived_courses_screen.dart';
 import 'package:eduportfolio/features/courses/presentation/screens/course_form_screen.dart';
 import 'package:eduportfolio/features/courses/presentation/screens/courses_screen.dart';
 import 'package:eduportfolio/features/gallery/presentation/screens/evidence_detail_screen.dart';
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String faceTraining = '/face-training';
   static const String courses = '/courses';
   static const String courseForm = '/course-form';
+  static const String archivedCourses = '/archived-courses';
   static const String review = '/review';
   static const String config = '/config';
   static const String subjectsManagement = '/subjects-management';
@@ -177,6 +179,12 @@ class AppRoutes {
           builder: (_) => CourseFormScreen(
             courseId: courseId,
           ),
+          settings: settings,
+        );
+
+      case archivedCourses:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ArchivedCoursesScreen(),
           settings: settings,
         );
 

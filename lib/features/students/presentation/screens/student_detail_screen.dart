@@ -1,4 +1,5 @@
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -328,12 +329,21 @@ class StudentDetailScreen extends ConsumerWidget {
 
     if (confirmed == true && context.mounted) {
       try {
+        // Get student data before deleting to know which course to invalidate
+        final getStudentUseCase = ref.read(getStudentByIdUseCaseProvider);
+        final student = await getStudentUseCase(studentId);
+        final courseId = student?.courseId;
+
         // Delete student
         final deleteUseCase = ref.read(deleteStudentUseCaseProvider);
         await deleteUseCase(studentId);
 
         // Invalidate providers to refresh data
         ref.invalidate(filteredStudentsProvider);
+        // Invalidate student count for the course
+        if (courseId != null) {
+          ref.invalidate(courseStudentCountProvider(courseId));
+        }
 
         if (context.mounted) {
           // Show success message

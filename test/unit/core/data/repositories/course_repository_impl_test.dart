@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/data/datasources/course_local_datasource.dart';
+import 'package:eduportfolio/core/data/datasources/evidence_local_datasource.dart';
 import 'package:eduportfolio/core/data/models/course_model.dart';
 import 'package:eduportfolio/core/data/repositories/course_repository_impl.dart';
 import 'package:eduportfolio/core/domain/entities/course.dart';
@@ -9,14 +10,16 @@ import 'package:mockito/mockito.dart';
 
 import 'course_repository_impl_test.mocks.dart';
 
-@GenerateMocks([CourseLocalDataSource])
+@GenerateMocks([CourseLocalDataSource, EvidenceLocalDataSource])
 void main() {
   late MockCourseLocalDataSource mockDataSource;
+  late MockEvidenceLocalDataSource mockEvidenceDataSource;
   late CourseRepositoryImpl repository;
 
   setUp(() {
     mockDataSource = MockCourseLocalDataSource();
-    repository = CourseRepositoryImpl(mockDataSource);
+    mockEvidenceDataSource = MockEvidenceLocalDataSource();
+    repository = CourseRepositoryImpl(mockDataSource, mockEvidenceDataSource);
   });
 
   final startDate = DateTime(2024, 9, 1);

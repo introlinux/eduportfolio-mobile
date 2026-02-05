@@ -18,11 +18,20 @@ class CoursesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final coursesAsync = ref.watch(allCoursesProvider);
+    final coursesAsync = ref.watch(activeCoursesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Cursos'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.archive_outlined),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/archived-courses');
+            },
+            tooltip: 'Ver cursos archivados',
+          ),
+        ],
       ),
       body: coursesAsync.when(
         data: (courses) {
@@ -58,6 +67,7 @@ class CoursesScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(allCoursesProvider);
+              ref.invalidate(activeCoursesProvider);
             },
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -112,6 +122,7 @@ class CoursesScreen extends ConsumerWidget {
               ElevatedButton.icon(
                 onPressed: () {
                   ref.invalidate(allCoursesProvider);
+                  ref.invalidate(activeCoursesProvider);
                 },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Reintentar'),
@@ -142,6 +153,7 @@ class CoursesScreen extends ConsumerWidget {
       // Invalidate providers to refresh data
       ref.invalidate(allCoursesProvider);
       ref.invalidate(activeCourseProvider);
+      ref.invalidate(activeCoursesProvider);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -197,6 +209,8 @@ class CoursesScreen extends ConsumerWidget {
         // Invalidate providers to refresh data
         ref.invalidate(allCoursesProvider);
         ref.invalidate(activeCourseProvider);
+        ref.invalidate(activeCoursesProvider);
+        ref.invalidate(archivedCoursesProvider);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

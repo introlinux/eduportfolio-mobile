@@ -26,6 +26,12 @@ abstract class CourseRepository {
   /// Archive course (set end date and deactivate)
   Future<void> archiveCourse(int id, DateTime endDate);
 
+  /// Unarchive course (remove end date, keep inactive)
+  Future<void> unarchiveCourse(int id);
+
+  /// Delete course with all associated evidence files
+  Future<void> deleteCourseWithFiles(int id);
+
   /// Count total courses
   Future<int> countCourses();
 }
