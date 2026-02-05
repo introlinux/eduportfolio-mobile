@@ -53,7 +53,15 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   bool _isProcessingFrame = false;
   DateTime? _lastProcessTime;
   bool _isStreamActive = false;
-  
+
+  // Modo encuadre intencionado (long-press)
+  bool _isLongPressActive = false;
+  String? _frozenStudentName;
+  int? _frozenStudentId;
+
+  // Selección manual de estudiante
+  bool _isManualSelectionActive = false;
+
   // Debug: cropped face image for visualization
   img.Image? _debugCroppedFace;
   Uint8List? _debugCroppedFaceBytes;
@@ -149,7 +157,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         }
 
         // Skip if already processing or capturing
-        if (_isProcessingFrame || _isCapturing) {
+        if (_isProcessingFrame || _isCapturing || _isLongPressActive || _isManualSelectionActive) {
           return;
         }
 
@@ -342,7 +350,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       }
       */
 
-        if (mounted) {
+        if (mounted && !_isManualSelectionActive) {
           setState(() {
           if (result != null && result.student != null) {
             _liveRecognitionName = result.student!.name;
@@ -355,7 +363,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       }
     } catch (e) {
       // Recognition failed, clear state
-      if (mounted) {
+      if (mounted && !_isManualSelectionActive) {
         setState(() {
           _liveRecognitionName = null;
           _liveRecognizedStudentId = null;
@@ -512,15 +520,186 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       setState(() {
         _previewImagePath = null;
         _isCapturing = false;
+        _isLongPressActive = false;
+        _frozenStudentName = null;
+        _frozenStudentId = null;
         _recognizedStudentName = null;
         _recognizedStudentId = null;
       });
     }
   }
 
+  void _onLongPressStart() {
+    if (_isCapturing) return;
+    setState(() {
+      _isLongPressActive = true;
+      _frozenStudentName = _liveRecognitionName;
+      _frozenStudentId = _liveRecognizedStudentId;
+    });
+  }
+
+  Future<void> _onLongPressEnd() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing) {
+      setState(() {
+        _isLongPressActive = false;
+        _frozenStudentName = null;
+        _frozenStudentId = null;
+      });
+      return;
+    }
+
+    setState(() => _isCapturing = true);
+
+    try {
+      final image = await _cameraController!.takePicture();
+
+      setState(() {
+        _recognizedStudentName = _frozenStudentName;
+        _recognizedStudentId = _frozenStudentId;
+        _previewImagePath = image.path;
+      });
+
+      // Auto-save after 2 seconds unless cancelled
+      await Future.delayed(const Duration(milliseconds: 2000));
+
+      if (mounted && _previewImagePath != null) {
+        await _saveEvidence(image.path, studentId: _recognizedStudentId);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al capturar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCapturing = false;
+          _isLongPressActive = false;
+          _frozenStudentName = null;
+          _frozenStudentId = null;
+          _previewImagePath = null;
+          _recognizedStudentName = null;
+          _recognizedStudentId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _openStudentSelector() async {
+    final getActiveCourseUseCase = ref.read(getActiveCourseUseCaseProvider);
+    final activeCourse = await getActiveCourseUseCase();
+
+    if (!mounted) return;
+
+    if (activeCourse == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay curso activo'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final studentRepository = ref.read(studentRepositoryProvider);
+    final allStudents = await studentRepository.getAllStudents();
+    final courseStudents = allStudents
+        .where((s) => s.courseId == activeCourse.id)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    if (!mounted) return;
+
+    if (courseStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay estudiantes en el curso activo'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar estudiante'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: courseStudents.length,
+            itemBuilder: (context, index) {
+              final student = courseStudents[index];
+              final isSelected = _isManualSelectionActive &&
+                  _liveRecognizedStudentId == student.id;
+              return ListTile(
+                leading: Icon(
+                  Icons.person,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                ),
+                title: Text(student.name),
+                trailing: isSelected
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () => Navigator.pop(context, student.id),
+              );
+            },
+          ),
+        ),
+        actions: [
+          if (_isManualSelectionActive)
+            TextButton(
+              onPressed: () => Navigator.pop(context, -1),
+              child: const Text('Auto-reconocimiento'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result == null) {
+      // Cancelled — no change
+    } else if (result == -1) {
+      // Restore auto-recognition
+      setState(() {
+        _isManualSelectionActive = false;
+        _liveRecognitionName = null;
+        _liveRecognizedStudentId = null;
+      });
+    } else {
+      // Student manually selected
+      final selected = courseStudents.firstWhere((s) => s.id == result);
+      setState(() {
+        _isManualSelectionActive = true;
+        _liveRecognitionName = selected.name;
+        _liveRecognizedStudentId = selected.id;
+      });
+    }
+  }
+
   Future<void> _switchCamera() async {
-    if (_availableCameras.length < 2 || _isCapturing) {
-      return; // No multiple cameras or currently capturing
+    if (_availableCameras.length < 2 || _isCapturing || _isLongPressActive) {
+      return;
     }
 
     // Stop live recognition while switching
@@ -666,9 +845,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
               Container(
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _liveRecognitionName != null
-                        ? Colors.green
-                        : Colors.orange.withValues(alpha: 0.5),
+                    color: _isLongPressActive
+                        ? Colors.blue
+                        : (_liveRecognitionName != null
+                            ? Colors.green
+                            : Colors.orange.withValues(alpha: 0.5)),
                     width: 6,
                   ),
                 ),
@@ -730,19 +911,28 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                       ),
                     ),
                   ),
+                // Selección manual de estudiante
+                IconButton(
+                  icon: Icon(
+                    Icons.person_add,
+                    color: _isManualSelectionActive ? Colors.blue : Colors.white,
+                  ),
+                  onPressed: _isLongPressActive ? null : _openStudentSelector,
+                  tooltip: 'Seleccionar estudiante',
+                ),
                 // Camera switch button (only show if multiple cameras available)
                 if (_availableCameras.length > 1)
                   IconButton(
                     icon: const Icon(Icons.flip_camera_android, color: Colors.white),
-                    onPressed: _switchCamera,
+                    onPressed: _isLongPressActive ? null : _switchCamera,
                     tooltip: 'Cambiar cámara',
                   ),
               ],
             ),
           ),
 
-          // Live recognition overlay
-          if (_liveRecognitionName != null && !_isCapturing)
+          // Banner de estudiante: reconocimiento vivo o fijado (long-press)
+          if (!_isCapturing && (_isLongPressActive || _liveRecognitionName != null))
             Container(
               margin: const EdgeInsets.only(top: 80),
               alignment: Alignment.topCenter,
@@ -752,7 +942,9 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.green,
+                  color: _isLongPressActive
+                      ? (_frozenStudentName != null ? Colors.blue : Colors.amber)
+                      : Colors.green,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -765,26 +957,34 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.face,
+                    Icon(
+                      _isLongPressActive
+                          ? Icons.lock
+                          : (_isManualSelectionActive ? Icons.person : Icons.face),
                       color: Colors.white,
                       size: 28,
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      _liveRecognitionName!,
+                      _isLongPressActive
+                          ? (_frozenStudentName != null
+                              ? 'Fijado: $_frozenStudentName'
+                              : 'Sin estudiante reconocido')
+                          : _liveRecognitionName!,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.check_circle,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                    if (!_isLongPressActive && !_isManualSelectionActive) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -810,18 +1010,25 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Capture button
+                // Capture button (tap = captura rápida, long-press = encuadre intencionado)
                 GestureDetector(
                   onTap: _isCapturing ? null : _captureImage,
+                  onLongPressStart: _isCapturing ? null : (details) => _onLongPressStart(),
+                  onLongPressEnd: (details) => _onLongPressEnd(),
                   child: Container(
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
+                      border: Border.all(
+                        color: _isLongPressActive ? Colors.blue : Colors.white,
+                        width: _isLongPressActive ? 6 : 4,
+                      ),
                       color: _isCapturing
                           ? Colors.grey
-                          : Colors.white.withValues(alpha: 0.3),
+                          : _isLongPressActive
+                              ? Colors.blue.withValues(alpha: 0.4)
+                              : Colors.white.withValues(alpha: 0.3),
                     ),
                     child: _isCapturing
                         ? const Center(
@@ -836,16 +1043,18 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  _isCapturing ? 'Capturando...' : 'CAPTURAR',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
+                if (_isLongPressActive) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'SOLTAR PARA CAPTURAR',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
