@@ -38,13 +38,13 @@ Todo esto opera bajo un paradigma **"Local-First"** y de **"Privacidad por Dise�
 
 ### Características Principales
 
-- **Operación 100% local**: Sin servicios externos online, garantizando la privacidad de los datos de menores
+- **Almacenamiento Local-First**: Sin servicios externos online, garantizando la privacidad de los datos de menores
 - **Reconocimiento facial automático**: Identificación de estudiantes en tiempo real utilizando modelos de ML on-device
-- **Múltiples tipos de evidencias**: Captura de fotos, vídeos y audios
+- **Privacidad por Diseño**: Sistema de pixelado automático de rostros para compartir evidencias de forma segura
+- **Múltiples tipos de evidencias**: Captura de fotos (vídeo y audio en desarrollo)
 - **Organización inteligente**: Clasificación automática por curso, alumno y asignatura
-- **Portfolio digital**: Galería temporal estilo Google Photos para visualizar el trabajo de cada estudiante
-- **Exportación flexible**: Generación de portfolios completos o parciales en formato ZIP
-- **Sincronización local**: Compatibilidad con sistemas de escritorio vía WiFi/Bluetooth
+- **Portfolio digital**: Galería con filtros por fecha, asignatura y alumno
+- **Exportación y Compartición**: Generación de ZIPs y envío de imágenes individuales con protección de privacidad
 
 ---
 
@@ -119,24 +119,23 @@ eduportfolio/
 │   ├── icons/
 │   └── images/
 ├── test/
-│   ├── unit/
-│   ├── widget/
-│   └── integration/
+│   ├── unit/            -- Pruebas de lógica y casos de uso
+│   └── widget/          -- Pruebas de componentes de interfaz
+├── integration_test/    -- Pruebas de flujo completo (E2E)
+├── assets/
+│   ├── models/          -- Modelos TFLite (BlazeFace, MobileFaceNet)
+│   ├── icons/
+│   └── images/
 ├── android/
 ├── ios/
 ├── docs/
 │   ├── FACE_RECOGNITION.md
 │   ├── COURSE_MANAGEMENT.md
+│   ├── STUDENT_MANAGEMENT.md
 │   ├── REVIEW_SCREEN.md
 │   ├── SETTINGS.md
-│   ├── architecture.md
-│   ├── database_schema.md
-│   └── api_reference.md
-├── .github/
-│   └── workflows/
-├── pubspec.yaml
-├── README.md
-└── AGENTS.md
+│   ├── FASE_0_COMPLETADA.md
+│   └── FASE_1_COMPLETADA.md
 ```
 
 ---
@@ -484,37 +483,23 @@ La aplicación soporta los siguientes idiomas:
 ### Fase 1 (MVP) - TFM 🚧
 - [x] Arquitectura base del proyecto (Clean Architecture)
 - [x] Modelo de datos y repositorios (SQLite)
-- [x] Vista principal (Home) con asignaturas
+- [x] Vista principal (Home) con indicadores de almacenamiento y revisión
 - [x] Vista de captura multimedia (Capture & QuickCapture)
-- [x] Sistema de reconocimiento facial funcional
-  - [x] FaceTrainingScreen (captura 5 fotos)
-  - [x] Integración en QuickCaptureScreen
-  - [x] Servicios de detección, embeddings y reconocimiento
-- [x] Integración de modelo TFLite real
-- [x] Vista de galería (Gallery & EvidenceDetail)
-- [x] Gestión de estudiantes (Students)
-- [x] Gestión de cursos escolares (Courses)
-- [x] Vista de revisión manual (Review)
-  - [x] Selección múltiple con checkboxes
-  - [x] Asignación por lote
-  - [x] Eliminación por lote con confirmación
-  - [x] Preview a pantalla completa con navegación
-- [x] Vista de Ajustes (Settings) completa
-- [x] Tests unitarios (Core, UseCases, Services)
-- [x] Documentación técnica
-- [ ] Tests de widgets e integración
-- [ ] Pruebas en dispositivos reales
+- [x] Sistema de reconocimiento facial funcional (MobileFaceNet)
+- [x] Privacidad: Servicio de pixelado de rostros para compartición segura
+- [x] Vista de galería con selección múltiple y compartición
+- [x] Gestión de estudiantes y cursos escolares
+- [x] Vista de revisión manual para evidencias sin clasificar
+- [x] Tests unitarios y de widgets con alta cobertura
+- [x] Documentación técnica detallada
+- [ ] Pruebas en dispositivos reales (Android/iOS)
 
 ### Fase 2 (Futuro)
-- [ ] Sincronización con aplicación de escritorio
-- [ ] Clasificación automática por IA (YOLO) de evidencias
-- [ ] Incorporación de evidencias de vídeo y audio
-- [ ] Transcripción de audios
-- [ ] Anotaciones del docente
-- [ ] Compartir evidencias con padres
-- [ ] Integración con plataformas educativas
-- [ ] Búsqueda avanzada por contenido
-- [ ] Exportación a PDF/HTML
+- [ ] Sincronización con aplicación de escritorio (Fase 2)
+- [ ] Encriptación avanzada de base de datos y biométrica (Fase 2)
+- [ ] Clasificación automática por IA (YOLO) de contenidos
+- [ ] Incorporación completa de vídeo y audio (Fase 2)
+- [ ] Generación de informes en PDF/HTML
 
 ---
 
