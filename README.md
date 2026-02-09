@@ -21,7 +21,7 @@ Los docentes de Educación Infantil y Primaria enfrentan el desafío de:
 
 ### Solución Propuesta
 
-Por una parte un Kiosko de Evidencias, una **estación de trabajo digital** que permite a los alumnos:
+Por una parte un **Kiosko de Evidencias**, una **estación de trabajo digital** que permite a los alumnos:
 1. Ser reconocidos automáticamente mediante **reconocimiento facial**.
 2. Mostrar sus trabajos a una cámara para su **captura y digitalización**.
 3. Ver cómo el sistema **clasifica automáticamente** el trabajo en su portfolio digital por asignatura.
@@ -32,6 +32,8 @@ Y, por otra parte, una **aplicación móvil** de recolección de evidencias por 
 3. Mostrar los trabajos en una galería para evaluarlos o mostrarlos a las familias.
 4. Sincronizar la información que hubiera en el Kiosko de Evidencias para fusionarla con la recogida por el docente.
 
+El Kiosko de Evidencias es un programa que se llevará a cabo en la fase 2 del proyecto. Mientras que la aplicación móvil forma parte de la fase 1 del proyecto.
+
 Todo esto opera bajo un paradigma **"Local-First"** y de **"Privacidad por Diseño"**, asegurando que todos los datos (incluyendo imágenes y perfiles biométricos) se procesen y almacenen exclusivamente en el dispositivo local, **sin ninguna conexión a servidores externos o a la nube**.
 
 
@@ -41,7 +43,7 @@ Todo esto opera bajo un paradigma **"Local-First"** y de **"Privacidad por Dise�
 - **Almacenamiento Local-First**: Sin servicios externos online, garantizando la privacidad de los datos de menores
 - **Reconocimiento facial automático**: Identificación de estudiantes en tiempo real utilizando modelos de ML on-device
 - **Privacidad por Diseño**: Sistema de pixelado automático de rostros para compartir evidencias de forma segura
-- **Múltiples tipos de evidencias**: Captura de fotos (vídeo y audio en desarrollo)
+- **Múltiples tipos de evidencias**: Captura de fotos (también vídeo y audio en el futuro)
 - **Organización inteligente**: Clasificación automática por curso, alumno y asignatura
 - **Portfolio digital**: Galería con filtros por fecha, asignatura y alumno
 - **Exportación y Compartición**: Generación de ZIPs y envío de imágenes individuales con protección de privacidad
@@ -201,6 +203,12 @@ flutter build apk --release
 # El APK se generará en: build/app/outputs/flutter-apk/app-release.apk
 ```
 
+**Modo release (Separa por Arquitectura)**
+```bash
+flutter build apk --split-per-abi
+# En lugar de un APK "gordo" genera varios archivos en build/app/outputs/flutter-apk/ para 32bits, 64bits y x86_64.
+```
+
 **Modo release (iOS)**
 ```bash
 flutter build ios --release
@@ -250,13 +258,12 @@ genhtml coverage/lcov.info -o coverage/html
 
 **Nomenclatura de archivos**:
 ```
-[TIPO]_[YYYYMMDD]_[HHMMSS]_[ASIGNATURA].[ext]
+[ID-ASIGNATURA]_[ID-ALUMNO]_[YYYYMMDD]_[HHMMSS].[ext]
 
 Ejemplos:
-- IMG_20250129_143025_MATEMATICAS.jpg
-- VID_20250129_143530_CIENCIAS.mp4
-- AUD_20250129_144200_LENGUA.mp3
-- THUMB_20250129_143025_MATEMATICAS.jpg (miniatura)
+- MAT_Juan-Garcia_20250129_143025.jpg
+- LEN_SIN-ASIGNAR_20250129_143530.jpg
+- CIE_Maria-Lopez_20250129_144200.jpg
 ```
 
 ### 3. Vista de Galería (Gallery)
@@ -480,7 +487,7 @@ La aplicación soporta los siguientes idiomas:
 
 ## 📈 Roadmap
 
-### Fase 1 (MVP) - TFM 🚧
+### Fase 1 (MVP) - TFM 
 - [x] Arquitectura base del proyecto (Clean Architecture)
 - [x] Modelo de datos y repositorios (SQLite)
 - [x] Vista principal (Home) con indicadores de almacenamiento y revisión
@@ -492,13 +499,14 @@ La aplicación soporta los siguientes idiomas:
 - [x] Vista de revisión manual para evidencias sin clasificar
 - [x] Tests unitarios y de widgets con alta cobertura
 - [x] Documentación técnica detallada
-- [ ] Pruebas en dispositivos reales (Android/iOS)
+- [x] Pruebas en dispositivos reales (Android/iOS)
 
-### Fase 2 (Futuro)
-- [ ] Sincronización con aplicación de escritorio (Fase 2)
-- [ ] Encriptación avanzada de base de datos y biométrica (Fase 2)
+### Fase 2 (Futuro)🚧
+- [ ] Aplicación de escritorio
+- [ ] Sincronización con aplicación de escritorio
+- [ ] Encriptación avanzada de base de datos y biométrica e imágenes en aplicación de escritorio
 - [ ] Clasificación automática por IA (YOLO) de contenidos
-- [ ] Incorporación completa de vídeo y audio (Fase 2)
+- [ ] Incorporación completa de vídeo y audio en aplicación mobile y de escritorio.
 - [ ] Generación de informes en PDF/HTML
 
 ---
