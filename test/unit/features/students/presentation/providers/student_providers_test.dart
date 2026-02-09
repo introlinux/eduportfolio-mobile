@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/entities/student.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/students/domain/usecases/get_all_students_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/get_student_by_id_usecase.dart';
 import 'package:eduportfolio/features/students/domain/usecases/get_students_by_course_usecase.dart';
@@ -103,6 +104,8 @@ void main() {
         overrides: [
           getAllStudentsUseCaseProvider
               .overrideWithValue(mockGetAllStudentsUseCase),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -124,6 +127,8 @@ void main() {
         overrides: [
           getAllStudentsUseCaseProvider
               .overrideWithValue(mockGetAllStudentsUseCase),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -205,6 +210,8 @@ void main() {
               .overrideWithValue(mockGetAllStudentsUseCase),
           getStudentsByCourseUseCaseProvider
               .overrideWithValue(mockGetStudentsByCourseUseCase),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);

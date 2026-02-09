@@ -12,6 +12,7 @@ import 'package:eduportfolio/features/gallery/domain/services/privacy_service.da
 import 'package:eduportfolio/features/gallery/domain/usecases/update_evidences_subject_usecase.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 // ============================================================================
 // ENUMS

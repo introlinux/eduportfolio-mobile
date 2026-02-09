@@ -9,6 +9,7 @@ import 'package:eduportfolio/features/students/domain/usecases/update_student_fa
 import 'package:eduportfolio/features/students/domain/usecases/update_student_usecase.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 // ============================================================================
 // USECASE PROVIDERS

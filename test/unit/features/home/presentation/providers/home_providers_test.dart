@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/entities/subject.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/home/domain/usecases/count_pending_evidences_usecase.dart';
 import 'package:eduportfolio/features/home/domain/usecases/get_default_subjects_usecase.dart';
 import 'package:eduportfolio/features/home/domain/usecases/get_storage_info_usecase.dart';
@@ -127,13 +128,15 @@ void main() {
   group('pendingEvidencesCountProvider', () {
     test('should return count of pending evidences', () async {
       // Arrange
-      when(mockCountPendingEvidencesUseCase.call())
+      when(mockCountPendingEvidencesUseCase.call(courseId: anyNamed('courseId')))
           .thenAnswer((_) async => 15);
 
       final container = ProviderContainer(
         overrides: [
           countPendingEvidencesUseCaseProvider
               .overrideWithValue(mockCountPendingEvidencesUseCase),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -148,12 +151,15 @@ void main() {
 
     test('should return 0 when no pending evidences', () async {
       // Arrange
-      when(mockCountPendingEvidencesUseCase.call()).thenAnswer((_) async => 0);
+      when(mockCountPendingEvidencesUseCase.call(courseId: anyNamed('courseId')))
+          .thenAnswer((_) async => 0);
 
       final container = ProviderContainer(
         overrides: [
           countPendingEvidencesUseCaseProvider
               .overrideWithValue(mockCountPendingEvidencesUseCase),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -167,12 +173,15 @@ void main() {
 
     test('should update when evidences are reviewed', () async {
       // Arrange
-      when(mockCountPendingEvidencesUseCase.call()).thenAnswer((_) async => 10);
+      when(mockCountPendingEvidencesUseCase.call(courseId: anyNamed('courseId')))
+          .thenAnswer((_) async => 10);
 
       final container = ProviderContainer(
         overrides: [
           countPendingEvidencesUseCaseProvider
               .overrideWithValue(mockCountPendingEvidencesUseCase),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);

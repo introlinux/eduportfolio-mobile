@@ -186,9 +186,11 @@ class MockEvidenceLocalDataSource extends _i1.Mock
           as _i3.Future<int>);
 
   @override
-  _i3.Future<int> countEvidencesNeedingReview() =>
+  _i3.Future<int> countEvidencesNeedingReview({int? courseId}) =>
       (super.noSuchMethod(
-            Invocation.method(#countEvidencesNeedingReview, []),
+            Invocation.method(#countEvidencesNeedingReview, [], {
+              #courseId: courseId,
+            }),
             returnValue: _i3.Future<int>.value(0),
           )
           as _i3.Future<int>);

@@ -6,8 +6,14 @@
 import 'dart:async' as _i3;
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart' as _i4;
+import 'package:eduportfolio/core/domain/entities/student.dart' as _i8;
+import 'package:eduportfolio/core/domain/entities/subject.dart' as _i6;
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart'
     as _i2;
+import 'package:eduportfolio/core/domain/repositories/student_repository.dart'
+    as _i7;
+import 'package:eduportfolio/core/domain/repositories/subject_repository.dart'
+    as _i5;
 import 'package:mockito/mockito.dart' as _i1;
 
 // ignore_for_file: type=lint
@@ -170,9 +176,11 @@ class MockEvidenceRepository extends _i1.Mock
           as _i3.Future<int>);
 
   @override
-  _i3.Future<int> countEvidencesNeedingReview() =>
+  _i3.Future<int> countEvidencesNeedingReview({int? courseId}) =>
       (super.noSuchMethod(
-            Invocation.method(#countEvidencesNeedingReview, []),
+            Invocation.method(#countEvidencesNeedingReview, [], {
+              #courseId: courseId,
+            }),
             returnValue: _i3.Future<int>.value(0),
           )
           as _i3.Future<int>);
@@ -181,6 +189,180 @@ class MockEvidenceRepository extends _i1.Mock
   _i3.Future<int> getTotalStorageSize() =>
       (super.noSuchMethod(
             Invocation.method(#getTotalStorageSize, []),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+}
+
+/// A class which mocks [SubjectRepository].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockSubjectRepository extends _i1.Mock implements _i5.SubjectRepository {
+  MockSubjectRepository() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  _i3.Future<List<_i6.Subject>> getAllSubjects() =>
+      (super.noSuchMethod(
+            Invocation.method(#getAllSubjects, []),
+            returnValue: _i3.Future<List<_i6.Subject>>.value(<_i6.Subject>[]),
+          )
+          as _i3.Future<List<_i6.Subject>>);
+
+  @override
+  _i3.Future<List<_i6.Subject>> getDefaultSubjects() =>
+      (super.noSuchMethod(
+            Invocation.method(#getDefaultSubjects, []),
+            returnValue: _i3.Future<List<_i6.Subject>>.value(<_i6.Subject>[]),
+          )
+          as _i3.Future<List<_i6.Subject>>);
+
+  @override
+  _i3.Future<_i6.Subject?> getSubjectById(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#getSubjectById, [id]),
+            returnValue: _i3.Future<_i6.Subject?>.value(),
+          )
+          as _i3.Future<_i6.Subject?>);
+
+  @override
+  _i3.Future<_i6.Subject?> getSubjectByName(String? name) =>
+      (super.noSuchMethod(
+            Invocation.method(#getSubjectByName, [name]),
+            returnValue: _i3.Future<_i6.Subject?>.value(),
+          )
+          as _i3.Future<_i6.Subject?>);
+
+  @override
+  _i3.Future<int> createSubject(_i6.Subject? subject) =>
+      (super.noSuchMethod(
+            Invocation.method(#createSubject, [subject]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<void> updateSubject(_i6.Subject? subject) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateSubject, [subject]),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<void> deleteSubject(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteSubject, [id]),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<int> countSubjects() =>
+      (super.noSuchMethod(
+            Invocation.method(#countSubjects, []),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+}
+
+/// A class which mocks [StudentRepository].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockStudentRepository extends _i1.Mock implements _i7.StudentRepository {
+  MockStudentRepository() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  _i3.Future<List<_i8.Student>> getAllStudents() =>
+      (super.noSuchMethod(
+            Invocation.method(#getAllStudents, []),
+            returnValue: _i3.Future<List<_i8.Student>>.value(<_i8.Student>[]),
+          )
+          as _i3.Future<List<_i8.Student>>);
+
+  @override
+  _i3.Future<List<_i8.Student>> getStudentsByCourse(int? courseId) =>
+      (super.noSuchMethod(
+            Invocation.method(#getStudentsByCourse, [courseId]),
+            returnValue: _i3.Future<List<_i8.Student>>.value(<_i8.Student>[]),
+          )
+          as _i3.Future<List<_i8.Student>>);
+
+  @override
+  _i3.Future<List<_i8.Student>> getStudentsFromActiveCourse() =>
+      (super.noSuchMethod(
+            Invocation.method(#getStudentsFromActiveCourse, []),
+            returnValue: _i3.Future<List<_i8.Student>>.value(<_i8.Student>[]),
+          )
+          as _i3.Future<List<_i8.Student>>);
+
+  @override
+  _i3.Future<_i8.Student?> getStudentById(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#getStudentById, [id]),
+            returnValue: _i3.Future<_i8.Student?>.value(),
+          )
+          as _i3.Future<_i8.Student?>);
+
+  @override
+  _i3.Future<List<_i8.Student>> getStudentsWithFaceData() =>
+      (super.noSuchMethod(
+            Invocation.method(#getStudentsWithFaceData, []),
+            returnValue: _i3.Future<List<_i8.Student>>.value(<_i8.Student>[]),
+          )
+          as _i3.Future<List<_i8.Student>>);
+
+  @override
+  _i3.Future<List<_i8.Student>> getActiveStudentsWithFaceData() =>
+      (super.noSuchMethod(
+            Invocation.method(#getActiveStudentsWithFaceData, []),
+            returnValue: _i3.Future<List<_i8.Student>>.value(<_i8.Student>[]),
+          )
+          as _i3.Future<List<_i8.Student>>);
+
+  @override
+  _i3.Future<int> createStudent(_i8.Student? student) =>
+      (super.noSuchMethod(
+            Invocation.method(#createStudent, [student]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<void> updateStudent(_i8.Student? student) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateStudent, [student]),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<void> deleteStudent(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteStudent, [id]),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<int> countStudents() =>
+      (super.noSuchMethod(
+            Invocation.method(#countStudents, []),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> countStudentsByCourse(int? courseId) =>
+      (super.noSuchMethod(
+            Invocation.method(#countStudentsByCourse, [courseId]),
             returnValue: _i3.Future<int>.value(0),
           )
           as _i3.Future<int>);

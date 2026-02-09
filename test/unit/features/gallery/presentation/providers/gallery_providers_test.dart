@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
+import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/get_all_evidences_usecase.dart';
 import 'package:eduportfolio/features/gallery/domain/usecases/get_evidence_by_id_usecase.dart';
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
@@ -157,6 +158,8 @@ void main() {
         overrides: [
           getAllEvidencesUseCaseProvider
               .overrideWithValue(mockGetAllEvidencesUseCase),
+          // Mock activeCourseProvider to return null (no active course filter)
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -183,6 +186,8 @@ void main() {
         overrides: [
           getAllEvidencesUseCaseProvider
               .overrideWithValue(mockGetAllEvidencesUseCase),
+          // Mock activeCourseProvider to return null (no active course filter)
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -207,6 +212,8 @@ void main() {
           getAllEvidencesUseCaseProvider
               .overrideWithValue(mockGetAllEvidencesUseCase),
           selectedSubjectFilterProvider.overrideWith((ref) => 1),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -234,6 +241,8 @@ void main() {
           getAllEvidencesUseCaseProvider
               .overrideWithValue(mockGetAllEvidencesUseCase),
           selectedSubjectFilterProvider.overrideWith((ref) => 999),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -258,6 +267,8 @@ void main() {
           getAllEvidencesUseCaseProvider
               .overrideWithValue(mockGetAllEvidencesUseCase),
           selectedStudentFilterProvider.overrideWith((ref) => 1),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -287,6 +298,8 @@ void main() {
           getAllEvidencesUseCaseProvider
               .overrideWithValue(mockGetAllEvidencesUseCase),
           // null means "show all students"
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -312,6 +325,8 @@ void main() {
               .overrideWithValue(mockGetAllEvidencesUseCase),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.pending),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -337,6 +352,8 @@ void main() {
               .overrideWithValue(mockGetAllEvidencesUseCase),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.reviewed),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -362,6 +379,8 @@ void main() {
               .overrideWithValue(mockGetAllEvidencesUseCase),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.all),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -387,6 +406,8 @@ void main() {
               .overrideWithValue(mockGetAllEvidencesUseCase),
           selectedSubjectFilterProvider.overrideWith((ref) => 1),
           selectedStudentFilterProvider.overrideWith((ref) => 2),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -414,6 +435,8 @@ void main() {
           selectedSubjectFilterProvider.overrideWith((ref) => 1),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.pending),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -440,6 +463,8 @@ void main() {
           selectedStudentFilterProvider.overrideWith((ref) => 1),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.reviewed),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -467,6 +492,8 @@ void main() {
           selectedStudentFilterProvider.overrideWith((ref) => 2),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.pending),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);
@@ -496,6 +523,8 @@ void main() {
           selectedStudentFilterProvider.overrideWith((ref) => 1),
           reviewStatusFilterProvider
               .overrideWith((ref) => ReviewStatusFilter.pending),
+          // Mock activeCourseProvider to return null
+          activeCourseProvider.overrideWith((ref) => null),
         ],
       );
       addTearDown(container.dispose);

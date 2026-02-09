@@ -76,6 +76,7 @@ Future<Database> createTestDatabase() async {
           CREATE TABLE evidences (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id INTEGER,
+            course_id INTEGER,
             subject_id INTEGER NOT NULL DEFAULT 1,
             type TEXT NOT NULL DEFAULT 'IMG',
             file_path TEXT NOT NULL,
@@ -87,6 +88,7 @@ Future<Database> createTestDatabase() async {
             notes TEXT,
             created_at TEXT NOT NULL,
             FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE SET NULL,
+            FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
             FOREIGN KEY (subject_id) REFERENCES subjects (id)
           )
         ''');
@@ -161,6 +163,7 @@ class TestDataHelper {
   /// Inserta una evidencia de prueba y retorna su ID
   Future<int> insertTestEvidence({
     int? studentId,
+    int? courseId,
     int subjectId = 1,
     String type = 'IMG',
     String filePath = '/test/path/image.jpg',
@@ -173,6 +176,7 @@ class TestDataHelper {
   }) async {
     return await db.insert('evidences', {
       'student_id': studentId,
+      'course_id': courseId,
       'subject_id': subjectId,
       'type': type,
       'file_path': filePath,

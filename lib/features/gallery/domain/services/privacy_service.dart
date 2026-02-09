@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:isolate';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -18,7 +16,14 @@ class PrivacyService {
     print('[PrivacyService ${now.hour}:${now.minute}:${now.second}.${now.millisecond}] $message');
   }
 
-  /// Process an image for sharing, optionally applying privacy protection (pixelation)
+  /// Process an image for sharing, optionally applying privacy protection (pixelation).
+  ///
+  /// Pipeline:
+  ///   1. [Isolate]  read + decode + bakeOrientation   (correct output orientation)
+  ///   2. [Main]     optional 90° rotation copy        (BlazeFace needs landscape for large portraits)
+  ///   3. [Main]     BlazeFace detection               (TFLite runs on the main thread)
+  ///   4. [Main]     map coordinates back if rotated + pixelate face region
+  ///   5. [Isolate]  JPEG encode + file write
   Future<File> processImageForSharing(File input, bool privacyEnabled) async {
     if (!privacyEnabled) {
       return input;
@@ -28,30 +33,88 @@ class PrivacyService {
     _log('START processing ${input.path}');
 
     try {
-      // 1. Detect face
-      _log('Step 1: Detecting face...');
-      final detectionResult = await _faceDetectorService.detectFace(input);
+      // 1. Read + decode + bakeOrientation in isolate.
+      //    bakeOrientation produces the correctly-oriented image that will be saved.
+      //    The 90° rotation hack used by detectFace() is NOT applied here — that is
+      //    only needed temporarily for BlazeFace detection (step 2).
+      _log('Step 1: Decoding image...');
+      final image = await Isolate.run(() async {
+        final bytes = await input.readAsBytes();
+        var decoded = img.decodeImage(bytes);
+        if (decoded == null) return null;
+        decoded = img.bakeOrientation(decoded);
+        return decoded;
+      });
+      _log('Image decoded in ${stopwatch.elapsedMilliseconds}ms');
+
+      if (image == null) {
+        _log('Failed to decode image. Returning original.');
+        return input;
+      }
+      _log('Decoded dimensions: ${image.width}x${image.height}');
+
+      // 2. BlazeFace fails to detect faces in large portrait images due to aspect
+      //    ratio distortion when resizing to 128×128.  detectFace() works around this
+      //    by rotating portrait images 90° before inference.  We do the same here, but
+      //    on a separate copy so the output image stays correctly oriented.
+      final needsRotation = (image.width > 1000 || image.height > 1000) &&
+          image.height > image.width;
+      final detectionImage =
+          needsRotation ? img.copyRotate(image, angle: 90) : image;
+      _log('Detection image: ${detectionImage.width}x${detectionImage.height}' +
+          (needsRotation ? ' (rotated copy)' : ''));
+
+      // 3. Detect face (main thread — TFLite constraint).
+      _log('Step 2: Detecting face...');
+      final detection = await _faceDetectorService.detectFaceFromImage(
+        detectionImage,
+        generateDebugImage: false,
+      );
       _log('Face detection finished in ${stopwatch.elapsedMilliseconds}ms');
 
-      if (detectionResult == null) {
+      if (detection == null) {
         _log('No face detected. Returning original.');
         return input;
       }
-      _log('Face detected at ${detectionResult.box}');
+      _log('Face detected at ${detection.box}');
 
-      // 2. Process image (Resize + Pixelate + Fix Rotation)
-      _log('Step 2: Starting image processing...');
-      final processStart = stopwatch.elapsedMilliseconds;
-      final processedPath = await _processImage(input, detectionResult.box);
-      _log('Image processing finished in ${stopwatch.elapsedMilliseconds - processStart}ms');
+      // 4. If we rotated for detection, map the bounding box back to the original
+      //    image space.  copyRotate(angle: 90) is a 90° CW rotation; for a source
+      //    image of width W and height H the inverse mapping for a box is:
+      //      x_orig  = box.y
+      //      y_orig  = H - box.x - box.width
+      //      w_orig  = box.height
+      //      h_orig  = box.width
+      final box = needsRotation
+          ? FaceRect(
+              x: detection.box.y,
+              y: image.height - detection.box.x - detection.box.width,
+              width: detection.box.height,
+              height: detection.box.width,
+            )
+          : detection.box;
+      _log('Mapped box (output space): $box');
 
-      if (processedPath == null) {
-        _log('Processing returned null (error). Returning original.');
-        return input;
-      }
+      // 5. Pixelate the face region in-place on the correctly-oriented image.
+      _log('Step 3: Pixelating...');
+      _pixelateImage(image, box);
+      _log('Pixelation done in ${stopwatch.elapsedMilliseconds}ms');
+
+      // 6. Encode + write in isolate (JPEG encoding is CPU-heavy).
+      _log('Step 4: Encoding and saving...');
+      final tempDir = await getTemporaryDirectory();
+      final targetPath = path.join(
+        tempDir.path,
+        'privacy_temp_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      await Isolate.run(() async {
+        final outputBytes = img.encodeJpg(image, quality: 80);
+        await File(targetPath).writeAsBytes(outputBytes);
+      });
 
       _log('TOTAL SUCCESS in ${stopwatch.elapsedMilliseconds}ms');
-      return File(processedPath);
+      return File(targetPath);
     } catch (e, stack) {
       _log('CRITICAL ERROR in processImageForSharing: $e');
       print(stack);
@@ -59,221 +122,52 @@ class PrivacyService {
     }
   }
 
-  Future<String?> _processImage(File inputFile, FaceRect detectedBox) async {
-    try {
-      final tempDir = await getTemporaryDirectory();
-      final targetPath = path.join(tempDir.path, 'privacy_temp_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      
-      // STEP 1: Get original dimensions
-      _log('Getting original dimensions...');
-      final originalBytes = await inputFile.readAsBytes();
-      _log('Read original bytes: ${originalBytes.length}');
-      
-      // Fast decode just dimensions if possible? method decodeImage is slow for big files.
-      // But we need it. Let's assume this is one bottleneck.
-      // Optimization: use decodeImageFrame (header only) if available? 
-      // image package 'decodeInfo' is what we want usually, but currently decodeImage reads it all.
-      // Let's rely on isolate for this if it's too slow.
-      // actually, let's just use FlutterImageCompress to resize FIRST, that's fast.
-      // But we need ORIG dims for mapping.
-      
-      final originalInfo = await img.decodeImage(originalBytes); 
-      if (originalInfo == null) {
-          _log('Failed to decode original image header');
-          return null;
-      }
-      _log('Original dimensions: ${originalInfo.width}x${originalInfo.height}');
+  /// Apply mosaic pixelation to the face region directly on [image].
+  /// Downscales the face crop to [mosaicBlockCount] blocks wide, then upscales
+  /// with nearest-neighbor interpolation to produce the blocky mosaic effect.
+  static void _pixelateImage(img.Image image, FaceRect box) {
+    final px = box.x.clamp(0, image.width - 1);
+    final py = box.y.clamp(0, image.height - 1);
+    final pw = box.width.clamp(0, image.width - px);
+    final ph = box.height.clamp(0, image.height - py);
 
-      // STEP 2: Native Compress
-      _log('Compressing/Resizing with native library...');
-      final compressStart = DateTime.now();
-      
-      // User requested ORIGINAL resolution.
-      // We still use compressWithFile to fix rotation (autoCorrectionAngle),
-      // but we match minWidth/minHeight to original dimensions to prevent downscaling.
-      final compressedBytes = await FlutterImageCompress.compressWithFile(
-        inputFile.path,
-        minWidth: originalInfo.width,
-        minHeight: originalInfo.height,
-        quality: 90, // Higher quality for "original" feel
-        autoCorrectionAngle: true, 
-      );
-      _log('Compression done in ${DateTime.now().difference(compressStart).inMilliseconds}ms');
+    if (pw <= 0 || ph <= 0) return;
 
-      if (compressedBytes == null) {
-          _log('Native compression returned null');
-          return null;
-      }
-      _log('Compressed bytes size: ${compressedBytes.length}');
+    // 12 blocks wide = very blocky / unrecognizable.
+    // 20 blocks wide = slightly recognizable features.
+    const mosaicBlockCount = 12;
 
-      // STEP 3: Pixelate in Isolate
-      _log('Spawning Isolate for pixelation...');
-      final isolateStart = DateTime.now();
-      
-      final result = await Isolate.run(() async {
-        return _pixelateInIsolate(
-          compressedBytes,
-          originalInfo.width,
-          originalInfo.height,
-          detectedBox,
-          targetPath,
-        );
-      });
-      
-      _log('Isolate finished in ${DateTime.now().difference(isolateStart).inMilliseconds}ms');
-      return result;
-      
-    } catch (e, stack) {
-      _log('Error in _processImage: $e');
-      print(stack);
-      return null;
-    }
+    final smallWidth = mosaicBlockCount;
+    final smallHeight = (mosaicBlockCount * (ph / pw)).round().clamp(1, ph);
+
+    final faceCrop = img.copyCrop(image, x: px, y: py, width: pw, height: ph);
+
+    final smallFace = img.copyResize(
+      faceCrop,
+      width: smallWidth,
+      height: smallHeight,
+      interpolation: img.Interpolation.average,
+    );
+
+    final pixelatedFace = img.copyResize(
+      smallFace,
+      width: pw,
+      height: ph,
+      interpolation: img.Interpolation.nearest,
+    );
+
+    img.compositeImage(image, pixelatedFace, dstX: px, dstY: py);
   }
 
-  static void _logIsolate(String message) {
-     final now = DateTime.now();
-     print('[PrivacyService ISOLATE ${now.hour}:${now.minute}:${now.second}.${now.millisecond}] $message');
-  }
-
-  /// Heavy pixelation logic in Isolate
-  static Future<String?> _pixelateInIsolate(
-    Uint8List compressedBytes,
-    int originalWidth,
-    int originalHeight,
-    FaceRect detectedBox,
-    String targetPath,
-  ) async {
-    try {
-      _logIsolate('Isolate started.');
-      _logIsolate('Decoding compressed image...');
-      final image = img.decodeImage(compressedBytes);
-      if (image == null) {
-          _logIsolate('Failed to decode compressed image');
-          return null;
-      }
-
-      _logIsolate('Image decoded: ${image.width}x${image.height}');
-      
-      // COORDINATE MAPPING
-      // FaceDetectorService "Hack" Check:
-      bool detectorRotated = false;
-      // Dimensions used by detector for calculation
-      int detSpaceW = originalWidth;
-      int detSpaceH = originalHeight;
-
-      if ((originalWidth > 1000 || originalHeight > 1000) && originalHeight > originalWidth) {
-        detectorRotated = true;
-        detSpaceW = originalHeight;
-        detSpaceH = originalWidth;
-        _logIsolate('Detector rotation hack detected (Portrait->Landscape)');
-      }
-
-      FaceRect finalBox;
-      if (detectorRotated) {
-        // Rotated Mapping
-        final xOrig = detectedBox.y;
-        final yOrig = originalHeight - detectedBox.x - detectedBox.width;
-        final wOrig = detectedBox.height;
-        final hOrig = detectedBox.width;
-        
-        final double sX = image.width / originalWidth;
-        final double sY = image.height / originalHeight;
-        
-        finalBox = FaceRect(
-          x: (xOrig * sX).round(),
-          y: (yOrig * sY).round(),
-          width: (wOrig * sX).round(),
-          height: (hOrig * sY).round(),
-        );
-      } else {
-        // Simple Scaling
-        final double sX = image.width / detSpaceW;
-        final double sY = image.height / detSpaceH;
-        
-        finalBox = FaceRect(
-          x: (detectedBox.x * sX).round(),
-          y: (detectedBox.y * sY).round(),
-          width: (detectedBox.width * sX).round(),
-          height: (detectedBox.height * sY).round(),
-        );
-      }
-      _logIsolate('Mapped box: $finalBox');
-
-      // manual pixelation (Mosaic effect)
-      // This is much faster than convolution filters.
-      // Logic: Downscale the crop to tiny size, then upscale it back with NEAREST NEIGHBOR interpolation.
-      
-      // Decrease factor to make blocks BIGGER (fewer blocks across face)
-      // 15 was too detailed. 8 creates 8x8 blocks across the face.
-      final pixelFactor = 8; // How chunky the pixels are
-      
-      final px = finalBox.x.clamp(0, image.width - 1);
-      final py = finalBox.y.clamp(0, image.height - 1);
-      final pw = finalBox.width.clamp(0, image.width - px);
-      final ph = finalBox.height.clamp(0, image.height - py);
-
-      if (pw > 0 && ph > 0) {
-        _logIsolate('Cropping face...');
-        final faceCrop = img.copyCrop(image, x: px, y: py, width: pw, height: ph);
-        
-        _logIsolate('Pixelating using downscale/upscale...');
-        // Fixed target width in "pixels" (blocks) for the face.
-        // Determines how recognizable the face is. 
-        // 12 blocks wide = very blocky/unrecognizable.
-        // 20 blocks wide = slightly recognizable features.
-        const mosaicBlockCount = 12; 
-        
-        final smallWidth = mosaicBlockCount;
-        final smallHeight = (mosaicBlockCount * (ph / pw)).round(); // Preserve aspect ratio
-        
-        _logIsolate('Downscaling crop ${pw}x${ph} -> ${smallWidth}x${smallHeight}');
-
-        final smallFace = img.copyResize(
-          faceCrop, 
-          width: smallWidth, 
-          height: smallHeight, 
-          interpolation: img.Interpolation.average
-        );
-        
-        // 2. Upscale
-        final pixelatedFace = img.copyResize(
-          smallFace,
-          width: pw,
-          height: ph,
-          interpolation: img.Interpolation.nearest, // Critical for blocky look
-        );
-        
-        _logIsolate('Compositing...');
-        img.compositeImage(image, pixelatedFace, dstX: px, dstY: py);
-      } else {
-        _logIsolate('Face box outside bounds, skipping pixelation');
-      }
-
-      // SAVE
-      _logIsolate('Encoding JPG...');
-      final outputBytes = img.encodeJpg(image, quality: 80);
-      _logIsolate('Writing to file...');
-      await File(targetPath).writeAsBytes(outputBytes);
-
-      
-      _logIsolate('Done.');
-      return targetPath;
-    } catch (e, stack) {
-      _logIsolate('Error: $e');
-      print(stack);
-      return null;
-    }
-  }
-
-  /// Clean up temporary files
+  /// Clean up temporary files created during privacy processing
   Future<void> cleanUpTempFiles() async {
-     try {
+    try {
       final tempDir = await getTemporaryDirectory();
       final files = tempDir.listSync();
       for (final file in files) {
-        if (file is File && 
-           (path.basename(file.path).startsWith('shared_privacy_') || 
-            path.basename(file.path).startsWith('privacy_temp_'))) {
+        if (file is File &&
+            (path.basename(file.path).startsWith('shared_privacy_') ||
+                path.basename(file.path).startsWith('privacy_temp_'))) {
           try {
             await file.delete();
           } catch (e) {}

@@ -7,7 +7,11 @@ import 'dart:async' as _i3;
 
 import 'package:eduportfolio/core/data/datasources/course_local_datasource.dart'
     as _i2;
+import 'package:eduportfolio/core/data/datasources/evidence_local_datasource.dart'
+    as _i5;
 import 'package:eduportfolio/core/data/models/course_model.dart' as _i4;
+import 'package:eduportfolio/core/data/models/evidence_model.dart' as _i6;
+import 'package:eduportfolio/core/domain/entities/evidence.dart' as _i7;
 import 'package:mockito/mockito.dart' as _i1;
 
 // ignore_for_file: type=lint
@@ -93,9 +97,195 @@ class MockCourseLocalDataSource extends _i1.Mock
           as _i3.Future<int>);
 
   @override
+  _i3.Future<int> unarchiveCourse(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#unarchiveCourse, [id]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
   _i3.Future<int> countCourses() =>
       (super.noSuchMethod(
             Invocation.method(#countCourses, []),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+}
+
+/// A class which mocks [EvidenceLocalDataSource].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockEvidenceLocalDataSource extends _i1.Mock
+    implements _i5.EvidenceLocalDataSource {
+  MockEvidenceLocalDataSource() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getAllEvidences() =>
+      (super.noSuchMethod(
+            Invocation.method(#getAllEvidences, []),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getEvidencesByStudent(int? studentId) =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidencesByStudent, [studentId]),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getEvidencesBySubject(int? subjectId) =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidencesBySubject, [subjectId]),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getEvidencesByStudentAndSubject(
+    int? studentId,
+    int? subjectId,
+  ) =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidencesByStudentAndSubject, [
+              studentId,
+              subjectId,
+            ]),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getEvidencesByType(
+    _i7.EvidenceType? type,
+  ) =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidencesByType, [type]),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getEvidencesNeedingReview() =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidencesNeedingReview, []),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getUnassignedEvidences() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUnassignedEvidences, []),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<List<_i6.EvidenceModel>> getEvidencesByDateRange(
+    DateTime? startDate,
+    DateTime? endDate,
+  ) =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidencesByDateRange, [startDate, endDate]),
+            returnValue: _i3.Future<List<_i6.EvidenceModel>>.value(
+              <_i6.EvidenceModel>[],
+            ),
+          )
+          as _i3.Future<List<_i6.EvidenceModel>>);
+
+  @override
+  _i3.Future<_i6.EvidenceModel?> getEvidenceById(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#getEvidenceById, [id]),
+            returnValue: _i3.Future<_i6.EvidenceModel?>.value(),
+          )
+          as _i3.Future<_i6.EvidenceModel?>);
+
+  @override
+  _i3.Future<int> insertEvidence(_i6.EvidenceModel? evidence) =>
+      (super.noSuchMethod(
+            Invocation.method(#insertEvidence, [evidence]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> updateEvidence(_i6.EvidenceModel? evidence) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateEvidence, [evidence]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> deleteEvidence(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteEvidence, [id]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> assignEvidenceToStudent(int? evidenceId, int? studentId) =>
+      (super.noSuchMethod(
+            Invocation.method(#assignEvidenceToStudent, [
+              evidenceId,
+              studentId,
+            ]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> countEvidences() =>
+      (super.noSuchMethod(
+            Invocation.method(#countEvidences, []),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> countEvidencesByStudent(int? studentId) =>
+      (super.noSuchMethod(
+            Invocation.method(#countEvidencesByStudent, [studentId]),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> countEvidencesNeedingReview({int? courseId}) =>
+      (super.noSuchMethod(
+            Invocation.method(#countEvidencesNeedingReview, [], {
+              #courseId: courseId,
+            }),
+            returnValue: _i3.Future<int>.value(0),
+          )
+          as _i3.Future<int>);
+
+  @override
+  _i3.Future<int> getTotalStorageSize() =>
+      (super.noSuchMethod(
+            Invocation.method(#getTotalStorageSize, []),
             returnValue: _i3.Future<int>.value(0),
           )
           as _i3.Future<int>);

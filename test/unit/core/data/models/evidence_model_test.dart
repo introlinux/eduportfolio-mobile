@@ -84,7 +84,9 @@ void main() {
       final model = EvidenceModel.fromEntity(unassignedEvidence);
       final map = model.toMap();
 
-      expect(map.containsKey('student_id'), false);
+      // student_id is included in map even when null to allow unsetting in DB
+      expect(map.containsKey('student_id'), true);
+      expect(map['student_id'], isNull);
       expect(map['is_reviewed'], 0);
       expect(model.needsReview, true);
       expect(model.isAssigned, false);

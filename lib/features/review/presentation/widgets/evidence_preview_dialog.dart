@@ -350,7 +350,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
         },
       );
     } else if (_currentEvidence.type == EvidenceType.video) {
-      // TODO: Add video player
+      // NOTE: Video player functionality planned for Phase 2
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

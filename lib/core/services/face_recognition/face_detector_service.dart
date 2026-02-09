@@ -223,11 +223,12 @@ class FaceDetectorService {
     }
   }
 
-  /// Detect face from already loaded image (e.g. from camera stream)
-  Future<FaceDetectionResult?> detectFaceFromImage(img.Image image) async {
+  /// Detect face from already loaded image (e.g. from camera stream).
+  /// [generateDebugImage] controls whether a debug visualization is produced;
+  /// set to false when only the bounding box is needed (e.g. privacy pixelation).
+  Future<FaceDetectionResult?> detectFaceFromImage(img.Image image, {bool generateDebugImage = true}) async {
     try {
-      // Generate debug image for live preview visualization
-      return await _detectFaceWithBlazeFace(image, generateDebugImage: true);
+      return await _detectFaceWithBlazeFace(image, generateDebugImage: generateDebugImage);
     } catch (e) {
       print('Error detecting face from image: $e');
       return null;

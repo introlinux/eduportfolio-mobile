@@ -62,9 +62,9 @@ class MockCountPendingEvidencesUseCase extends _i1.Mock
   }
 
   @override
-  _i4.Future<int> call() =>
+  _i4.Future<int> call({int? courseId}) =>
       (super.noSuchMethod(
-            Invocation.method(#call, []),
+            Invocation.method(#call, [], {#courseId: courseId}),
             returnValue: _i4.Future<int>.value(0),
           )
           as _i4.Future<int>);

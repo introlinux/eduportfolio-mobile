@@ -303,19 +303,17 @@ void main() {
 
       // Assert
       // Should have been called twice: once to deactivate course1, once to activate course2
-      verify(mockRepository.updateCourse(any)).called(2);
+      final capturedCalls = verify(mockRepository.updateCourse(captureAny))
+          .captured;
+      expect(capturedCalls.length, 2);
 
       // Verify course1 was deactivated
-      final deactivateCall = verify(mockRepository.updateCourse(captureAny))
-          .captured
-          .first as Course;
+      final deactivateCall = capturedCalls.first as Course;
       expect(deactivateCall.id, 1);
       expect(deactivateCall.isActive, isFalse);
 
       // Verify course2 was activated
-      final activateCall = verify(mockRepository.updateCourse(captureAny))
-          .captured
-          .last as Course;
+      final activateCall = capturedCalls.last as Course;
       expect(activateCall.id, 2);
       expect(activateCall.isActive, isTrue);
     });

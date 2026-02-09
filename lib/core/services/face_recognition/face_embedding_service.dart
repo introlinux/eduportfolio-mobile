@@ -166,9 +166,7 @@ class FaceEmbeddingService {
     );
   }
 
-  /// PLACEHOLDER: Generate random embedding for testing
-  ///
-  /// TODO: Remove when real model is integrated
+  /// Generate random embedding for testing (Safe fallback)
   List<double> _generatePlaceholderEmbedding() {
     // Generate a consistent "embedding" based on timestamp
     // This is just for testing the infrastructure

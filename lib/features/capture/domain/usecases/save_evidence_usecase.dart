@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
+import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
 import 'package:image/image.dart' as img;
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -12,8 +15,14 @@ import 'package:path_provider/path_provider.dart';
 /// and creates an Evidence record in the database
 class SaveEvidenceUseCase {
   final EvidenceRepository _repository;
+  final SubjectRepository _subjectRepository;
+  final StudentRepository _studentRepository;
 
-  SaveEvidenceUseCase(this._repository);
+  SaveEvidenceUseCase(
+    this._repository,
+    this._subjectRepository,
+    this._studentRepository,
+  );
 
   /// Save evidence from a captured/picked image
   ///
@@ -39,10 +48,22 @@ class SaveEvidenceUseCase {
       await evidencesDir.create(recursive: true);
     }
 
-    // Generate unique filename using timestamp
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    // Fetch subject data to get its name for the filename
+    final subject = await _subjectRepository.getSubjectById(subjectId);
+    if (subject == null) {
+      throw Exception('Subject with ID $subjectId not found');
+    }
+
+    // Fetch student data if available
+    String? studentName;
+    if (studentId != null) {
+      final student = await _studentRepository.getStudentById(studentId);
+      studentName = student?.name;
+    }
+
+    // Generate filename with format: [ID-ASIGNATURA]_[ID-ALUMNO]_[TIMESTAMP].jpg
     final extension = p.extension(tempImagePath);
-    final fileName = 'evidence_$timestamp$extension';
+    final fileName = _generateFileName(subject.name, studentName, extension);
     final permanentPath = '${evidencesDir.path}/$fileName';
 
     // Read and fix image orientation from EXIF metadata
@@ -91,5 +112,80 @@ class SaveEvidenceUseCase {
     final evidenceId = await _repository.createEvidence(evidence);
 
     return evidenceId;
+  }
+
+  /// Generate filename with format: [ID-ASIGNATURA]_[ID-ALUMNO]_[TIMESTAMP].jpg
+  ///
+  /// Example: MAT_Juan-Garcia_20260206_153045.jpg
+  ///
+  /// - [subjectName]: Full name of the subject (e.g., "Matemáticas")
+  /// - [studentName]: Full name of the student (e.g., "Juan Garcia"), null if unassigned
+  /// - [extension]: File extension including the dot (e.g., ".jpg")
+  String _generateFileName(String subjectName, String? studentName, String extension) {
+    // Generate subject ID: first 3 letters in uppercase
+    final subjectId = _generateSubjectId(subjectName);
+
+    // Generate student ID: normalize name by replacing spaces with hyphens
+    // If no student assigned, use "SIN-ASIGNAR"
+    final studentId = studentName != null
+        ? _normalizeStudentName(studentName)
+        : 'SIN-ASIGNAR';
+
+    // Generate timestamp in format: YYYYMMDD_HHMMSS
+    final now = DateTime.now();
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(now);
+
+    // Combine all parts: [ID-ASIGNATURA]_[ID-ALUMNO]_[TIMESTAMP].jpg
+    return '${subjectId}_${studentId}_$timestamp$extension';
+  }
+
+  /// Extract first 3 letters of subject name in uppercase
+  ///
+  /// Examples:
+  /// - "Matemáticas" → "MAT"
+  /// - "Lengua" → "LEN"
+  /// - "Inglés" → "ING"
+  /// - "Artística" → "ART"
+  String _generateSubjectId(String subjectName) {
+    // Remove accents and special characters
+    final normalized = _removeAccents(subjectName);
+
+    // Take first 3 characters and convert to uppercase
+    final id = normalized.length >= 3
+        ? normalized.substring(0, 3).toUpperCase()
+        : normalized.toUpperCase().padRight(3, 'X');
+
+    return id;
+  }
+
+  /// Remove accents from text
+  ///
+  /// Examples:
+  /// - "Matemáticas" → "Matematicas"
+  /// - "Inglés" → "Ingles"
+  /// - "Artística" → "Artistica"
+  String _removeAccents(String text) {
+    const withAccents = 'áéíóúÁÉÍÓÚñÑüÜ';
+    const withoutAccents = 'aeiouAEIOUnNuU';
+
+    String result = text;
+    for (int i = 0; i < withAccents.length; i++) {
+      result = result.replaceAll(withAccents[i], withoutAccents[i]);
+    }
+
+    return result;
+  }
+
+  /// Normalize student name by replacing spaces with hyphens
+  ///
+  /// Examples:
+  /// - "Juan Garcia" → "Juan-Garcia"
+  /// - "María López Pérez" → "Maria-Lopez-Perez"
+  String _normalizeStudentName(String name) {
+    // Remove accents
+    final normalized = _removeAccents(name);
+
+    // Replace spaces with hyphens
+    return normalized.replaceAll(' ', '-');
   }
 }

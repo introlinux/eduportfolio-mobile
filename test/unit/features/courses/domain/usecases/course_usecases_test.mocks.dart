@@ -93,6 +93,24 @@ class MockCourseRepository extends _i1.Mock implements _i2.CourseRepository {
           as _i3.Future<void>);
 
   @override
+  _i3.Future<void> unarchiveCourse(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#unarchiveCourse, [id]),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<void> deleteCourseWithFiles(int? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteCourseWithFiles, [id]),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
   _i3.Future<int> countCourses() =>
       (super.noSuchMethod(
             Invocation.method(#countCourses, []),

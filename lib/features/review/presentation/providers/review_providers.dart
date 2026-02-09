@@ -6,6 +6,7 @@ import 'package:eduportfolio/features/review/domain/usecases/delete_evidence_use
 import 'package:eduportfolio/features/review/domain/usecases/delete_multiple_evidences_usecase.dart';
 import 'package:eduportfolio/features/review/domain/usecases/get_unassigned_evidences_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 // ============================================================================
 // USECASE PROVIDERS
