@@ -4,6 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-blue.svg)](https://flutter.dev)
+[![Download APK](https://img.shields.io/badge/Download_APK-v1.0.0-success?style=flat&logo=android)](https://drive.google.com/file/d/14D3hyGKlAstHEnJvzRgMTqsTAKDBV8HF/view?usp=sharing)
 
 ---
 
@@ -18,21 +19,23 @@ Los docentes de Educación Infantil y Primaria enfrentan el desafío de:
 - **Archivar manualmente** trabajos para crear portfolios de evaluación.
 - **Perder tiempo valioso** en tareas organizativas que podrían dedicarse a la enseñanza.
 - **Dificultad para compartir evidencias** con las familias de forma ágil.
+- **Dificultad para encontrar aplicaciones para recoger evidencias reales** pues todas las apps de evaluación escolar se enfocan en calificar numéricamente. 
 
 ### Solución Propuesta
 
-Por una parte un **Kiosko de Evidencias**, una **estación de trabajo digital** que permite a los alumnos:
-1. Ser reconocidos automáticamente mediante **reconocimiento facial**.
-2. Mostrar sus trabajos a una cámara para su **captura y digitalización**.
-3. Ver cómo el sistema **clasifica automáticamente** el trabajo en su portfolio digital por asignatura.
-
-Y, por otra parte, una **aplicación móvil** de recolección de evidencias por clase mientras los estudiantes están trabajando que permite:
+El proyecto abarca dos fases principalmente:
+Por una parte, una **aplicación móvil** de recolección de evidencias por clase mientras los estudiantes están trabajando que permite:
 1. Recoger imágenes, capturas de audio y vídeo sobre el trabajo del alumnado in-situ.
 2. Clasificar las capturas creando un portfolio digital por asignatura.
 3. Mostrar los trabajos en una galería para evaluarlos o mostrarlos a las familias.
 4. Sincronizar la información que hubiera en el Kiosko de Evidencias para fusionarla con la recogida por el docente.
 
-El Kiosko de Evidencias es un programa que se llevará a cabo en la fase 2 del proyecto. Mientras que la aplicación móvil forma parte de la fase 1 del proyecto.
+Y, por otra parte, un **Kiosko de Evidencias**, una **estación de trabajo digital** instalada en un ordenador de sobremesa en clase, que permite a los alumnos:
+1. Ser reconocidos automáticamente mediante **reconocimiento facial**.
+2. Mostrar sus trabajos a una cámara para su **captura y digitalización**.
+3. Ver cómo el sistema **clasifica automáticamente** el trabajo en su portfolio digital por asignatura.
+
+El Kiosko de Evidencias está pensado para que su uso forme parte del día a día de los alumnos y es un programa que se llevará a cabo en la fase 2 del proyecto. Mientras que la aplicación móvil está pensada para usarla por parte del docente y forma parte de la fase 1 del proyecto.
 
 Todo esto opera bajo un paradigma **"Local-First"** y de **"Privacidad por Diseño"**, asegurando que todos los datos (incluyendo imágenes y perfiles biométricos) se procesen y almacenen exclusivamente en el dispositivo local, **sin ninguna conexión a servidores externos o a la nube**.
 
