@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
+import 'package:eduportfolio/core/domain/entities/student.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
@@ -302,27 +304,45 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                     ),
                     const SizedBox(height: 4),
                     subjectsAsync.when(
-                      data: (subjects) => DropdownButtonFormField<int>(
-                        value: evidence.subjectId,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: subjects.map((s) {
-                          return DropdownMenuItem<int>(
-                            value: s.id,
-                            child: Text(s.name),
-                          );
-                        }).toList(),
-                        onChanged: (newSubjectId) async {
-                          if (newSubjectId != null) {
-                            await _updateSubject(newSubjectId, ref);
+                      data: (subjects) {
+                        // ✅ FIX: Remove duplicates and validate value exists
+                        final uniqueSubjects = <int, Subject>{};
+                        for (final subject in subjects) {
+                          if (subject.id != null) {
+                            uniqueSubjects[subject.id!] = subject;
                           }
-                        },
-                      ),
+                        }
+
+                        final subjectsList = uniqueSubjects.values.toList()
+                          ..sort((a, b) => a.name.compareTo(b.name));
+
+                        // If current subjectId doesn't exist in list, use first available
+                        final validSubjectId = uniqueSubjects.containsKey(evidence.subjectId)
+                            ? evidence.subjectId
+                            : (subjectsList.isNotEmpty ? subjectsList.first.id : null);
+
+                        return DropdownButtonFormField<int>(
+                          value: validSubjectId,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: subjectsList.map((s) {
+                            return DropdownMenuItem<int>(
+                              value: s.id,
+                              child: Text(s.name),
+                            );
+                          }).toList(),
+                          onChanged: (newSubjectId) async {
+                            if (newSubjectId != null) {
+                              await _updateSubject(newSubjectId, ref);
+                            }
+                          },
+                        );
+                      },
                       loading: () => const CircularProgressIndicator(),
                       error: (_, __) => const Text('Error cargando asignaturas'),
                     ),
@@ -337,31 +357,50 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                     ),
                     const SizedBox(height: 4),
                     studentsAsync.when(
-                      data: (students) => DropdownButtonFormField<int?>(
-                        value: evidence.studentId,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
+                      data: (students) {
+                        // ✅ FIX: Remove duplicates and validate value exists
+                        final uniqueStudents = <int, Student>{};
+                        for (final student in students) {
+                          if (student.id != null) {
+                            uniqueStudents[student.id!] = student;
+                          }
+                        }
+
+                        final studentsList = uniqueStudents.values.toList()
+                          ..sort((a, b) => a.name.compareTo(b.name));
+
+                        // Validate that current studentId exists in list (or allow null)
+                        final validStudentId = evidence.studentId == null ||
+                                uniqueStudents.containsKey(evidence.studentId)
+                            ? evidence.studentId
+                            : null;
+
+                        return DropdownButtonFormField<int?>(
+                          value: validStudentId,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(),
                           ),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text('Sin asignar'),
-                          ),
-                          ...students.map((s) {
-                            return DropdownMenuItem<int?>(
-                              value: s.id,
-                              child: Text(s.name),
-                            );
-                          }),
-                        ],
-                        onChanged: (newStudentId) async {
-                          await _updateStudent(newStudentId, ref);
-                        },
-                      ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('Sin asignar'),
+                            ),
+                            ...studentsList.map((s) {
+                              return DropdownMenuItem<int?>(
+                                value: s.id,
+                                child: Text(s.name),
+                              );
+                            }),
+                          ],
+                          onChanged: (newStudentId) async {
+                            await _updateStudent(newStudentId, ref);
+                          },
+                        );
+                      },
                       loading: () => const CircularProgressIndicator(),
                       error: (_, __) => const Text('Error cargando estudiantes'),
                     ),

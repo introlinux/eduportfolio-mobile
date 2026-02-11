@@ -67,6 +67,7 @@ dependencies:
   shared_preferences: ^2.3.3
 
   # Networking (for sync feature - Phase 2)
+  http: ^1.2.2
   network_info_plus: ^7.0.0
   share_plus: ^12.0.1
   # flutter_reactive_ble - Se agregará en Fase 2 para sincronización Bluetooth

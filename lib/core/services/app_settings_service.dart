@@ -47,6 +47,37 @@ class AppSettingsService {
     }
   }
 
+  // Sync configuration methods
+
+  static const String _keySyncServerUrl = 'sync_server_url';
+  static const String _keyLastSyncTimestamp = 'last_sync_timestamp';
+
+  /// Get the configured sync server URL (e.g., "192.168.1.100:3000")
+  Future<String?> getSyncServerUrl() async {
+    return _prefs.getString(_keySyncServerUrl);
+  }
+
+  /// Set the sync server URL
+  Future<void> setSyncServerUrl(String url) async {
+    await _prefs.setString(_keySyncServerUrl, url);
+  }
+
+  /// Clear the sync server URL
+  Future<void> clearSyncServerUrl() async {
+    await _prefs.remove(_keySyncServerUrl);
+  }
+
+  /// Get the last sync timestamp
+  Future<DateTime?> getLastSyncTimestamp() async {
+    final str = _prefs.getString(_keyLastSyncTimestamp);
+    return str != null ? DateTime.tryParse(str) : null;
+  }
+
+  /// Set the last sync timestamp
+  Future<void> setLastSyncTimestamp(DateTime timestamp) async {
+    await _prefs.setString(_keyLastSyncTimestamp, timestamp.toIso8601String());
+  }
+
   /// Reset all settings to defaults
   Future<void> resetAllSettings() async {
     await _prefs.clear();

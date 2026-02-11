@@ -9,11 +9,17 @@ class Student {
   final int courseId;
   final String name;
   final Uint8List? faceEmbeddings;
+  final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   const Student({
-    required this.courseId, required this.name, required this.createdAt, required this.updatedAt, this.id,
+    required this.courseId,
+    required this.name,
+    this.isActive = true,
+    required this.createdAt,
+    required this.updatedAt,
+    this.id,
     this.faceEmbeddings,
   });
 
@@ -23,6 +29,7 @@ class Student {
     int? courseId,
     String? name,
     Uint8List? faceEmbeddings,
+    bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -31,6 +38,7 @@ class Student {
       courseId: courseId ?? this.courseId,
       name: name ?? this.name,
       faceEmbeddings: faceEmbeddings ?? this.faceEmbeddings,
+      isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

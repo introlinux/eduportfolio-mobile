@@ -53,6 +53,19 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showImageResolutionDialog(context, ref),
           ),
+          const Divider(),
+          ListTile(
+            leading: Icon(
+              Icons.sync,
+              color: theme.colorScheme.primary,
+            ),
+            title: const Text('Sincronización'),
+            subtitle: const Text('Conectar con aplicación de escritorio'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).pushNamed('/sync');
+            },
+          ),
           const Divider(height: 32),
 
           // System Cleanup Section
