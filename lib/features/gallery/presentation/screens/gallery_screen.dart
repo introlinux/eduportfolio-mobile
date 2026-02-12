@@ -283,6 +283,8 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             onSelected: (subjectId) {
               ref.read(selectedSubjectFilterProvider.notifier).state =
                   subjectId;
+              // Force refresh of filtered evidences
+              ref.invalidate(filteredEvidencesProvider);
             },
             itemBuilder: (context) => [
               PopupMenuItem<int?>(
@@ -339,6 +341,8 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             onSelected: (studentId) {
               ref.read(selectedStudentFilterProvider.notifier).state =
                   studentId;
+              // Force refresh of filtered evidences
+              ref.invalidate(filteredEvidencesProvider);
             },
             itemBuilder: (context) => [
               PopupMenuItem<int?>(
