@@ -133,7 +133,22 @@ class DatabaseHelper {
         });
       }
 
-      Logger.info('Database tables created successfully');
+      // Insert default course (same logic as desktop)
+      final now = DateTime.now();
+      final currentYear = now.year;
+      final nextYear = currentYear + 1;
+      // Short format according to Spanish calendar
+      final courseName = now.month >= 9 // September to December
+          ? 'Curso $currentYear-${nextYear.toString().substring(2)}'
+          : 'Curso ${currentYear - 1}-${currentYear.toString().substring(2)}';
+
+      await txn.insert('courses', {
+        'name': courseName,
+        'start_date': now.toIso8601String(),
+        'is_active': 1,
+      });
+
+      Logger.info('Database tables created successfully with default course: $courseName');
     });
   }
 
