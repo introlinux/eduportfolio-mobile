@@ -8,7 +8,7 @@ class AppConstants {
 
   // Database
   static const String databaseName = 'eduportfolio.db';
-  static const int databaseVersion = 3;
+  static const int databaseVersion = 4;
 
   // Default Subjects
   static const List<String> defaultSubjects = [

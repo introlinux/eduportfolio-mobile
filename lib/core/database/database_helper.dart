@@ -61,6 +61,8 @@ class DatabaseHelper {
           course_id INTEGER NOT NULL,
           name TEXT NOT NULL UNIQUE,
           face_embeddings BLOB,
+          enrollment_date TEXT DEFAULT CURRENT_TIMESTAMP,
+          is_active INTEGER DEFAULT 1,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
@@ -95,6 +97,8 @@ class DatabaseHelper {
           is_reviewed INTEGER DEFAULT 1,
           notes TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          confidence REAL,
+          method TEXT,
           FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL,
           FOREIGN KEY (course_id) REFERENCES courses(id),
           FOREIGN KEY (subject_id) REFERENCES subjects(id)
@@ -174,6 +178,8 @@ class DatabaseHelper {
             course_id INTEGER NOT NULL,
             name TEXT NOT NULL UNIQUE,
             face_embeddings BLOB,
+            enrollment_date TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
@@ -183,8 +189,16 @@ class DatabaseHelper {
         // Copy data, keeping only first occurrence of each name per course
         // (in case there are duplicates)
         await txn.execute('''
-          INSERT INTO students_new (id, course_id, name, face_embeddings, created_at, updated_at)
-          SELECT id, course_id, name, face_embeddings, created_at, updated_at
+          INSERT INTO students_new (id, course_id, name, face_embeddings, created_at, updated_at, enrollment_date, is_active)
+          SELECT
+            id,
+            course_id,
+            name,
+            face_embeddings,
+            created_at,
+            updated_at,
+            COALESCE(created_at, CURRENT_TIMESTAMP) as enrollment_date,
+            1 as is_active
           FROM students
           WHERE id IN (
             SELECT MIN(id)
@@ -205,6 +219,29 @@ class DatabaseHelper {
         );
       });
       Logger.info('Migration to v3 completed');
+    }
+
+    if (oldVersion < 4) {
+      Logger.info('Migrating to v4: Adding desktop compatibility fields');
+      await db.transaction((txn) async {
+        // Add enrollment_date and is_active to students
+        await txn.execute(
+          'ALTER TABLE students ADD COLUMN enrollment_date TEXT DEFAULT CURRENT_TIMESTAMP',
+        );
+        await txn.execute(
+          'ALTER TABLE students ADD COLUMN is_active INTEGER DEFAULT 1',
+        );
+
+        // Backfill enrollment_date with created_at
+        await txn.execute(
+          'UPDATE students SET enrollment_date = created_at WHERE enrollment_date IS NULL',
+        );
+
+        // Add confidence and method to evidences
+        await txn.execute('ALTER TABLE evidences ADD COLUMN confidence REAL');
+        await txn.execute('ALTER TABLE evidences ADD COLUMN method TEXT');
+      });
+      Logger.info('Migration to v4 completed');
     }
   }
 

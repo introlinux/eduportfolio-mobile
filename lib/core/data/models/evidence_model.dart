@@ -5,7 +5,12 @@ import 'package:eduportfolio/core/domain/entities/evidence.dart';
 /// Extends Evidence entity with database serialization.
 class EvidenceModel extends Evidence {
   const EvidenceModel({
-    required super.subjectId, required super.type, required super.filePath, required super.captureDate, required super.createdAt, super.id,
+    required super.subjectId,
+    required super.type,
+    required super.filePath,
+    required super.captureDate,
+    required super.createdAt,
+    super.id,
     super.studentId,
     super.courseId,
     super.thumbnailPath,
@@ -13,6 +18,8 @@ class EvidenceModel extends Evidence {
     super.duration,
     super.isReviewed,
     super.notes,
+    super.confidence,
+    super.method,
   });
 
   /// Create model from entity
@@ -31,6 +38,8 @@ class EvidenceModel extends Evidence {
       isReviewed: entity.isReviewed,
       notes: entity.notes,
       createdAt: entity.createdAt,
+      confidence: entity.confidence,
+      method: entity.method,
     );
   }
 
@@ -50,6 +59,8 @@ class EvidenceModel extends Evidence {
       isReviewed: (map['is_reviewed'] as int) == 1,
       notes: map['notes'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
+      confidence: map['confidence'] as double?,
+      method: map['method'] as String?,
     );
   }
 
@@ -69,6 +80,8 @@ class EvidenceModel extends Evidence {
       'is_reviewed': isReviewed ? 1 : 0,
       if (notes != null) 'notes': notes,
       'created_at': createdAt.toIso8601String(),
+      if (confidence != null) 'confidence': confidence,
+      if (method != null) 'method': method,
     };
   }
 
@@ -88,6 +101,8 @@ class EvidenceModel extends Evidence {
       isReviewed: isReviewed,
       notes: notes,
       createdAt: createdAt,
+      confidence: confidence,
+      method: method,
     );
   }
 
