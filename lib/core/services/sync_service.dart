@@ -77,7 +77,7 @@ class SyncService {
   /// Throws [SyncException] if request fails.
   Future<SyncMetadata> getMetadata(String baseUrl) async {
     try {
-      Logger.info('Getting metadata from: $baseUrl');
+      Logger.info('🟦 [SYNC-OUT] Solicitando metadatos a: $baseUrl');
 
       final uri = Uri.parse('$baseUrl/api/sync/metadata');
       final response = await _client
@@ -85,13 +85,15 @@ class SyncService {
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
+        Logger.info('   ✅ Respuesta recibida (${response.bodyBytes.length} bytes)');
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final metadata = SyncMetadata.fromJson(json);
         Logger.info(
-          'Metadata retrieved: ${metadata.students.length} students, '
-          '${metadata.courses.length} courses, '
-          '${metadata.subjects.length} subjects, '
-          '${metadata.evidences.length} evidences',
+          '   📊 Resumen recibido:\n'
+          '      - Estudiantes: ${metadata.students.length}\n'
+          '      - Cursos: ${metadata.courses.length}\n'
+          '      - Asignaturas: ${metadata.subjects.length}\n'
+          '      - Evidencias: ${metadata.evidences.length}',
         );
         return metadata;
       } else {
@@ -115,23 +117,42 @@ class SyncService {
   /// Throws [SyncException] if request fails.
   Future<void> pushMetadata(String baseUrl, SyncMetadata metadata) async {
     try {
-      Logger.info('Pushing metadata to: $baseUrl');
+      Logger.info('🟩 [SYNC-IN] Enviando metadatos locales a: $baseUrl');
+      Logger.info(
+          '   📊 Resumen a enviar:\n'
+          '      - Estudiantes: ${metadata.students.length}\n'
+          '      - Cursos: ${metadata.courses.length}\n'
+          '      - Asignaturas: ${metadata.subjects.length}\n'
+          '      - Evidencias: ${metadata.evidences.length}',
+        );
 
       final uri = Uri.parse('$baseUrl/api/sync/push');
       final headers = {
         'Content-Type': 'application/json',
         ..._getAuthHeaders(),
       };
+      
+      final body = jsonEncode(metadata.toJson());
+      Logger.info('   📤 Enviando payload (${body.length} bytes)...');
+
       final response = await _client
           .post(
             uri,
             headers: headers,
-            body: jsonEncode(metadata.toJson()),
+            body: body,
           )
           .timeout(_timeout);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        Logger.info('Metadata pushed successfully');
+        Logger.info('   ✅ Metadatos enviados correctamente');
+        // Loggear respuesta del servidor si hay detalles
+        try {
+           final json = jsonDecode(response.body);
+           if (json['results'] != null) {
+             Logger.info('   📥 Respuesta del servidor: ${jsonEncode(json['results'])}');
+           }
+        } catch (_) {}
+
       } else {
         throw SyncException(
           'Failed to push metadata: ${response.statusCode}',
@@ -159,7 +180,7 @@ class SyncService {
     void Function(double progress)? onProgress,
   }) async {
     try {
-      Logger.info('Uploading file: $filename');
+      Logger.info('📤 [FILE-UPLOAD] Subiendo archivo: $filename');
 
       final uri = Uri.parse('$baseUrl/api/sync/files');
       final request = http.MultipartRequest('POST', uri);
@@ -184,7 +205,7 @@ class SyncService {
 
       if (streamedResponse.statusCode == 200 ||
           streamedResponse.statusCode == 201) {
-        Logger.info('File uploaded successfully: $filename');
+        Logger.info('   ✅ Archivo subido correctamente: $filename');
       } else {
         throw SyncException(
           'Failed to upload file: ${streamedResponse.statusCode}',
@@ -212,7 +233,7 @@ class SyncService {
     void Function(double progress)? onProgress,
   }) async {
     try {
-      Logger.info('Downloading file: $filename to $savePath');
+      Logger.info('📥 [FILE-DOWNLOAD] Descargando archivo: $filename');
 
       final uri = Uri.parse('$baseUrl/api/sync/files/$filename');
       final response = await _client
@@ -223,7 +244,7 @@ class SyncService {
         final file = File(savePath);
         await file.create(recursive: true);
         await file.writeAsBytes(response.bodyBytes);
-        Logger.info('File downloaded successfully: $filename');
+        Logger.info('   ✅ Archivo descargado: $filename (${response.bodyBytes.length} bytes)');
         return file;
       } else if (response.statusCode == 404) {
         throw SyncException('File not found on server: $filename');

@@ -8,7 +8,7 @@ import 'package:eduportfolio/core/services/face_recognition/face_recognition_pro
 import 'package:eduportfolio/features/capture/presentation/providers/capture_providers.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
-import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -8,19 +8,7 @@ import 'package:eduportfolio/features/sync/domain/usecases/sync_usecases.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Provider for SharedPreferences instance
-final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
-  return await SharedPreferences.getInstance();
-});
-
-/// Provider for AppSettingsService
-final appSettingsServiceProvider = Provider<AppSettingsService>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider).value;
-  if (prefs == null) {
-    throw Exception('SharedPreferences not initialized');
-  }
-  return AppSettingsService(prefs);
-});
+// Shared providers moved to core_providers.dart
 
 /// Provider for SyncPasswordStorage
 final syncPasswordStorageProvider = Provider<SyncPasswordStorage>((ref) {

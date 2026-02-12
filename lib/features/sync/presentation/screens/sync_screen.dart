@@ -1,3 +1,4 @@
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/features/sync/domain/entities/sync_models.dart';
 import 'package:eduportfolio/features/sync/presentation/providers/sync_providers.dart';
 import 'package:flutter/material.dart';

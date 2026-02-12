@@ -12,7 +12,27 @@ import 'package:eduportfolio/core/domain/repositories/course_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
+import 'package:eduportfolio/core/services/app_settings_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// ============================================================================
+// SHARED PROVIDERS
+// ============================================================================
+
+/// Provider for SharedPreferences instance
+final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
+  return await SharedPreferences.getInstance();
+});
+
+/// Provider for AppSettingsService
+final appSettingsServiceProvider = Provider<AppSettingsService>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider).value;
+  if (prefs == null) {
+    throw StateError('SharedPreferences not yet initialized');
+  }
+  return AppSettingsService(prefs);
+});
 
 // ============================================================================
 // DATASOURCE PROVIDERS

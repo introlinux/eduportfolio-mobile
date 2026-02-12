@@ -9,19 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 // SERVICE PROVIDERS
 // ============================================================================
 
-/// Provider for SharedPreferences instance
-final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
-  return await SharedPreferences.getInstance();
-});
+// ============================================================================
+// SERVICE PROVIDERS
+// ============================================================================
 
-/// Provider for AppSettingsService
-final appSettingsServiceProvider = Provider<AppSettingsService>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider).value;
-  if (prefs == null) {
-    throw StateError('SharedPreferences not yet initialized');
-  }
-  return AppSettingsService(prefs);
-});
+// Shared providers moved to core_providers.dart
 
 // ============================================================================
 // USECASE PROVIDERS

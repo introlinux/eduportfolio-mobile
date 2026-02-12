@@ -6,7 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
-import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
+import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

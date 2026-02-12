@@ -85,46 +85,46 @@ class SyncRepository {
       final localMetadata = await _getLocalMetadata();
 
       // 3. Sync courses (must be first due to foreign keys)
-      Logger.info('Syncing courses...');
+      Logger.info('🔄 Sincronizando CURSOS...');
       final courseResult = await _syncCourses(
         localMetadata.courses,
         remoteMetadata.courses,
       );
 
       // 4. Sync subjects
-      Logger.info('Syncing subjects...');
+      Logger.info('🔄 Sincronizando ASIGNATURAS...');
       final subjectResult = await _syncSubjects(
         localMetadata.subjects,
         remoteMetadata.subjects,
       );
 
       // 5. Sync students
-      Logger.info('Syncing students...');
+      Logger.info('🔄 Sincronizando ESTUDIANTES...');
       final studentResult = await _syncStudents(
         localMetadata.students,
         remoteMetadata.students,
       );
 
       // 6. Download remote files FIRST (before creating evidence records)
-      Logger.info('Downloading remote files...');
+      Logger.info('🔄 Sincronizando ARCHIVOS REMOTOS...');
       final filesDownloaded = await _downloadRemoteFiles(
         baseUrl,
         remoteMetadata.evidences,
       );
 
       // 7. Sync evidences metadata (now that files are downloaded)
-      Logger.info('Syncing evidences metadata...');
+      Logger.info('🔄 Sincronizando EVIDENCIAS (Metadatos)...');
       final evidenceResult = await _syncEvidences(
         localMetadata.evidences,
         remoteMetadata.evidences,
       );
 
       // 8. Push local data to server
-      Logger.info('Pushing local data to server...');
+      Logger.info('🔄 Enviando cambios locales al servidor...');
       await _syncService.pushMetadata(baseUrl, localMetadata);
 
       // 9. Upload local files to server
-      Logger.info('Uploading local files...');
+      Logger.info('🔄 Subiendo archivos locales...');
       final filesUploaded = await _uploadLocalFiles(
         baseUrl,
         localMetadata.evidences,
@@ -133,7 +133,7 @@ class SyncRepository {
 
       final filesTransferred = filesDownloaded + filesUploaded;
 
-      // Build final result
+      Logger.info('✅ Sincronización completada con éxito');
       return result.copyWith(
         coursesAdded: courseResult.added,
         coursesUpdated: courseResult.updated,
@@ -460,14 +460,14 @@ class SyncRepository {
         );
         await _studentRepository.createStudent(student);
         added++;
-        Logger.info('Added student: ${student.name} (ID: ${student.id})');
+        Logger.info('   ➕ Estudiante nuevo del servidor: ${student.name} (ID: ${student.id})');
       } else if (localStudentById.name.isEmpty && localStudentByName.name.isNotEmpty) {
         // Student exists by name but with different ID - consolidate to server ID
         final oldId = localStudentByName.id;
         final newId = remoteStudent.id;
 
         Logger.warning(
-          'Student "${remoteStudent.name}" exists with different ID. Local: $oldId, Remote: $newId. Consolidating to server ID.',
+          '   ⚠️ Conflicto de ID en "${remoteStudent.name}". Local: $oldId, Remoto: $newId. Consolidando al ID del servidor.',
         );
 
         // Update all evidences that reference the old ID to use the new ID
@@ -477,14 +477,14 @@ class SyncRepository {
             final updatedEvidence = evidence.copyWith(studentId: newId);
             await _evidenceRepository.updateEvidence(updatedEvidence);
           }
-          Logger.info('Updated evidences for student "${remoteStudent.name}" from ID $oldId to $newId');
+          Logger.info('      ✏️ Evidencias migradas de ID $oldId a $newId');
 
           // Delete old student entry
           try {
             await _studentRepository.deleteStudent(oldId);
-            Logger.info('Deleted duplicate student with old ID: $oldId');
+            Logger.info('      🗑️ Estudiante local duplicado eliminado (ID: $oldId)');
           } catch (e) {
-            Logger.warning('Could not delete old student ID $oldId: $e');
+            Logger.warning('      ❌ No se pudo borrar el estudiante antiguo ID $oldId: $e');
           }
         }
 
@@ -502,7 +502,7 @@ class SyncRepository {
         );
         await _studentRepository.createStudent(student);
         updated++;
-        Logger.info('Consolidated student: ${student.name} (ID: ${student.id})');
+        Logger.info('      ✅ Estudiante consolidad: ${student.name} (Nuevo ID: ${student.id})');
       } else {
         // Student exists with correct ID - check if remote is newer
         final remoteUpdated = DateTime.parse(remoteStudent.updatedAt);
@@ -523,7 +523,9 @@ class SyncRepository {
           );
           await _studentRepository.updateStudent(student);
           updated++;
-          Logger.info('Updated student: ${student.name} (ID: ${student.id})');
+          Logger.info('   ✏️ Estudiante actualizado: ${student.name} (ID: ${student.id})');
+        } else {
+           // Logger.debug('   ⏭️ Estudiante al día: ${remoteStudent.name}');
         }
       }
     }
@@ -546,8 +548,32 @@ class SyncRepository {
     }
 
     for (final remoteEvidence in remote) {
-      final localEvidence = local.firstWhere(
-        (e) => e.filePath == remoteEvidence.filePath,
+      // ✅ FIX: Compare by ID first (primary match), then by filename (fallback for orphaned evidence)
+      final localEvidenceById = remoteEvidence.id != null
+          ? local.firstWhere(
+              (e) => e.id == remoteEvidence.id,
+              orElse: () => EvidenceSync(
+                subjectId: 0,
+                type: '',
+                filePath: '',
+                captureDate: '',
+                isReviewed: true,
+                createdAt: '',
+              ),
+            )
+          : EvidenceSync(
+              subjectId: 0,
+              type: '',
+              filePath: '',
+              captureDate: '',
+              isReviewed: true,
+              createdAt: '',
+            );
+
+      // ✅ FIX: Fallback to filename comparison (normalized without .enc)
+      final remoteFilename = remoteEvidence.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
+      final localEvidenceByFilename = local.firstWhere(
+        (e) => e.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '') == remoteFilename,
         orElse: () => EvidenceSync(
           subjectId: 0,
           type: '',
@@ -558,12 +584,16 @@ class SyncRepository {
         ),
       );
 
-      if (localEvidence.filePath.isEmpty) {
+      // Check if evidence exists locally (by ID or by filename)
+      final evidenceExists = localEvidenceById.filePath.isNotEmpty || localEvidenceByFilename.filePath.isNotEmpty;
+
+      if (!evidenceExists) {
         // New evidence from remote (file will be downloaded separately)
         // Remove .enc extension from filename since server sends decrypted files
         final cleanFilename = remoteEvidence.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
 
         final evidence = Evidence(
+          id: remoteEvidence.id, // ✅ Use server ID to maintain consistency
           studentId: remoteEvidence.studentId,
           courseId: remoteEvidence.courseId,
           subjectId: remoteEvidence.subjectId,
@@ -579,6 +609,9 @@ class SyncRepository {
         );
         await _evidenceRepository.createEvidence(evidence);
         added++;
+        Logger.info('   ➕ Nueva evidencia del servidor: $cleanFilename (ID: ${evidence.id})');
+      } else {
+        Logger.debug('   ⏭️ Evidencia ya existe: $remoteFilename');
       }
     }
 
@@ -642,9 +675,13 @@ class SyncRepository {
     Logger.info('Uploading ${local.length} local files...');
 
     for (final localEvidence in local) {
-      final remoteHasFile = remote.any(
-        (e) => e.filename == localEvidence.filename,
-      );
+      // Normalize filenames by removing .enc extension for comparison
+      final localFilename = localEvidence.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
+
+      final remoteHasFile = remote.any((e) {
+        final remoteFilename = e.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
+        return remoteFilename == localFilename;
+      });
 
       if (!remoteHasFile) {
         final localFile = File('${evidencesDir.path}/${localEvidence.filename}');
@@ -665,6 +702,8 @@ class SyncRepository {
         } else {
           Logger.warning('Local file not found, skipping upload: ${localEvidence.filename}');
         }
+      } else {
+        Logger.debug('File already exists on server (skipping): $localFilename');
       }
     }
 

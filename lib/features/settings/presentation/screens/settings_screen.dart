@@ -3,6 +3,7 @@ import 'package:eduportfolio/features/gallery/presentation/providers/gallery_pro
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/review/presentation/providers/review_providers.dart'
     as review;
+import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:flutter/material.dart';
