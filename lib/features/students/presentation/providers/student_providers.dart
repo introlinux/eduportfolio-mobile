@@ -76,8 +76,9 @@ final filteredStudentsProvider = FutureProvider<List<Student>>((ref) async {
 
   // If no explicit filter, fall back to active course
   if (effectiveCourseId == null) {
-    final activeCourseAsync = ref.watch(activeCourseProvider);
-    effectiveCourseId = activeCourseAsync.value?.id;
+    // Properly await the active course value
+    final activeCourse = await ref.watch(activeCourseProvider.future);
+    effectiveCourseId = activeCourse?.id;
   }
 
   if (effectiveCourseId == null) {

@@ -11,6 +11,7 @@ import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
 import 'package:eduportfolio/core/services/sync_service.dart';
+import 'package:eduportfolio/core/services/sync_password_storage.dart';
 import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/features/sync/domain/entities/sync_models.dart';
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +22,7 @@ import 'package:path_provider/path_provider.dart';
 /// to perform bidirectional synchronization.
 class SyncRepository {
   final SyncService _syncService;
+  final SyncPasswordStorage _passwordStorage;
   final StudentRepository _studentRepository;
   final CourseRepository _courseRepository;
   final SubjectRepository _subjectRepository;
@@ -28,15 +30,28 @@ class SyncRepository {
 
   SyncRepository({
     required SyncService syncService,
+    SyncPasswordStorage? passwordStorage,
     required StudentRepository studentRepository,
     required CourseRepository courseRepository,
     required SubjectRepository subjectRepository,
     required EvidenceRepository evidenceRepository,
   })  : _syncService = syncService,
+        _passwordStorage = passwordStorage ?? SyncPasswordStorage(),
         _studentRepository = studentRepository,
         _courseRepository = courseRepository,
         _subjectRepository = subjectRepository,
         _evidenceRepository = evidenceRepository;
+
+  /// Load and configure password before sync operations
+  Future<void> _ensurePasswordConfigured() async {
+    final password = await _passwordStorage.getPassword();
+    if (password == null || password.isEmpty) {
+      throw SyncException(
+        'Password not configured. Please set up sync password in settings.',
+      );
+    }
+    _syncService.setPassword(password);
+  }
 
   /// Test connection to server
   Future<bool> testConnection(String baseUrl) async {
@@ -53,6 +68,9 @@ class SyncRepository {
   /// Returns [SyncResult] with statistics about synced items.
   Future<SyncResult> syncAll(String baseUrl) async {
     Logger.info('Starting full synchronization');
+
+    // Ensure password is configured
+    await _ensurePasswordConfigured();
 
     final result = SyncResult.empty();
     final errors = <String>[];
@@ -87,24 +105,33 @@ class SyncRepository {
         remoteMetadata.students,
       );
 
-      // 6. Sync evidences metadata
+      // 6. Download remote files FIRST (before creating evidence records)
+      Logger.info('Downloading remote files...');
+      final filesDownloaded = await _downloadRemoteFiles(
+        baseUrl,
+        remoteMetadata.evidences,
+      );
+
+      // 7. Sync evidences metadata (now that files are downloaded)
       Logger.info('Syncing evidences metadata...');
       final evidenceResult = await _syncEvidences(
         localMetadata.evidences,
         remoteMetadata.evidences,
       );
 
-      // 7. Push local data to server
+      // 8. Push local data to server
       Logger.info('Pushing local data to server...');
       await _syncService.pushMetadata(baseUrl, localMetadata);
 
-      // 8. Sync files
-      Logger.info('Syncing files...');
-      final filesTransferred = await _syncFiles(
+      // 9. Upload local files to server
+      Logger.info('Uploading local files...');
+      final filesUploaded = await _uploadLocalFiles(
         baseUrl,
         localMetadata.evidences,
         remoteMetadata.evidences,
       );
+
+      final filesTransferred = filesDownloaded + filesUploaded;
 
       // Build final result
       return result.copyWith(
@@ -205,9 +232,21 @@ class SyncRepository {
         ),
       );
 
-      if (localCourse.name.isEmpty) {
-        // New course from remote
+      // Check if course exists by ID (primary match) or by name (fallback)
+      final localCourseById = local.firstWhere(
+        (c) => c.id == remoteCourse.id,
+        orElse: () => CourseSync(
+          name: '',
+          startDate: '',
+          isActive: false,
+          createdAt: '',
+        ),
+      );
+
+      if (localCourseById.name.isEmpty && localCourse.name.isEmpty) {
+        // New course from remote - use server's ID
         final course = Course(
+          id: remoteCourse.id, // ✅ Use server ID
           name: remoteCourse.name,
           startDate: DateTime.parse(remoteCourse.startDate),
           endDate: remoteCourse.endDate != null
@@ -218,15 +257,69 @@ class SyncRepository {
         );
         await _courseRepository.createCourse(course);
         added++;
+        Logger.info('Added course: ${course.name} (ID: ${course.id})');
+      } else if (localCourseById.name.isEmpty && localCourse.name.isNotEmpty) {
+        // Course exists by name but with different ID - update to use server ID
+        final oldId = localCourse.id;
+        final newId = remoteCourse.id;
+
+        Logger.warning(
+          'Course "${remoteCourse.name}" exists with different ID. Local: $oldId, Remote: $newId. Consolidating to server ID.',
+        );
+
+        // Preserve local isActive status - if user set this course as active, keep it active
+        final bool shouldBeActive = localCourse.isActive || remoteCourse.isActive;
+
+        // Update students and evidences to use new course ID
+        if (oldId != null && newId != null && oldId != newId) {
+          // Update students
+          final students = await _studentRepository.getAllStudents();
+          for (final student in students.where((s) => s.courseId == oldId)) {
+            final updatedStudent = student.copyWith(courseId: newId);
+            await _studentRepository.updateStudent(updatedStudent);
+          }
+
+          // Update evidences
+          final evidences = await _evidenceRepository.getAllEvidences();
+          for (final evidence in evidences.where((e) => e.courseId == oldId)) {
+            final updatedEvidence = evidence.copyWith(courseId: newId);
+            await _evidenceRepository.updateEvidence(updatedEvidence);
+          }
+
+          Logger.info('Updated students and evidences for course "${remoteCourse.name}" from ID $oldId to $newId');
+
+          // Delete old course entry
+          try {
+            await _courseRepository.deleteCourse(oldId);
+            Logger.info('Deleted duplicate course with old ID: $oldId');
+          } catch (e) {
+            Logger.warning('Could not delete old course ID $oldId: $e');
+          }
+        }
+
+        // Create course with server ID, preserving active status if local was active
+        final course = Course(
+          id: newId, // ✅ Use server ID
+          name: remoteCourse.name,
+          startDate: DateTime.parse(remoteCourse.startDate),
+          endDate: remoteCourse.endDate != null
+              ? DateTime.parse(remoteCourse.endDate!)
+              : null,
+          isActive: shouldBeActive, // ✅ Preserve active status from local if it was active
+          createdAt: DateTime.parse(remoteCourse.createdAt),
+        );
+        await _courseRepository.createCourse(course);
+        updated++;
+        Logger.info('Consolidated course: ${course.name} (ID: ${course.id}, isActive: $shouldBeActive)');
       } else {
-        // Check if remote is newer
+        // Course exists with correct ID - check if remote is newer
         final remoteUpdated = DateTime.parse(remoteCourse.createdAt);
-        final localUpdated = DateTime.parse(localCourse.createdAt);
+        final localUpdated = DateTime.parse(localCourseById.createdAt);
 
         if (remoteUpdated.isAfter(localUpdated)) {
           // Update from remote
           final course = Course(
-            id: localCourse.id,
+            id: remoteCourse.id, // ✅ Keep server ID
             name: remoteCourse.name,
             startDate: DateTime.parse(remoteCourse.startDate),
             endDate: remoteCourse.endDate != null
@@ -237,6 +330,7 @@ class SyncRepository {
           );
           await _courseRepository.updateCourse(course);
           updated++;
+          Logger.info('Updated course: ${course.name} (ID: ${course.id})');
         }
       }
     }
@@ -466,12 +560,15 @@ class SyncRepository {
 
       if (localEvidence.filePath.isEmpty) {
         // New evidence from remote (file will be downloaded separately)
+        // Remove .enc extension from filename since server sends decrypted files
+        final cleanFilename = remoteEvidence.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
+
         final evidence = Evidence(
           studentId: remoteEvidence.studentId,
           courseId: remoteEvidence.courseId,
           subjectId: remoteEvidence.subjectId,
           type: EvidenceType.fromString(remoteEvidence.type),
-          filePath: '${evidencesDir.path}/${remoteEvidence.filename}', // Use local absolute path
+          filePath: '${evidencesDir.path}/$cleanFilename', // Use local absolute path without .enc
           thumbnailPath: remoteEvidence.thumbnailPath,
           fileSize: remoteEvidence.fileSize,
           duration: remoteEvidence.duration,
@@ -488,35 +585,62 @@ class SyncRepository {
     return _SyncItemResult(added: added, updated: updated);
   }
 
-  /// Sync files between local and remote
-  Future<int> _syncFiles(
+  /// Download remote files that don't exist locally
+  Future<int> _downloadRemoteFiles(
+    String baseUrl,
+    List<EvidenceSync> remote,
+  ) async {
+    int filesDownloaded = 0;
+    final appDir = await getApplicationDocumentsDirectory();
+    final evidencesDir = Directory('${appDir.path}/evidences');
+
+    if (!await evidencesDir.exists()) {
+      await evidencesDir.create(recursive: true);
+    }
+
+    Logger.info('Downloading ${remote.length} remote files...');
+
+    for (final remoteEvidence in remote) {
+      // Remove .enc extension from filename since server sends decrypted files
+      final cleanFilename = remoteEvidence.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
+      final localFile = File('${evidencesDir.path}/$cleanFilename');
+
+      if (!await localFile.exists()) {
+        try {
+          // Download using the original filename (with .enc) from server
+          // but save to local path without .enc (decrypted)
+          await _syncService.downloadFile(
+            baseUrl,
+            remoteEvidence.filename, // Server expects filename with .enc
+            localFile.path,          // But we save without .enc (decrypted)
+          );
+          filesDownloaded++;
+          Logger.info('Downloaded and saved decrypted file: $cleanFilename');
+        } catch (e) {
+          Logger.error('Failed to download file: ${remoteEvidence.filename}', e);
+          // Continue with next file even if this one fails
+        }
+      } else {
+        Logger.debug('File already exists locally: $cleanFilename');
+      }
+    }
+
+    Logger.info('Downloaded $filesDownloaded files from server');
+    return filesDownloaded;
+  }
+
+  /// Upload local files that don't exist on remote
+  Future<int> _uploadLocalFiles(
     String baseUrl,
     List<EvidenceSync> local,
     List<EvidenceSync> remote,
   ) async {
-    int filesTransferred = 0;
+    int filesUploaded = 0;
     final appDir = await getApplicationDocumentsDirectory();
     final evidencesDir = Directory('${appDir.path}/evidences');
 
-    // Download files from remote that we don't have locally
-    for (final remoteEvidence in remote) {
-      final localFile = File('${evidencesDir.path}/${remoteEvidence.filename}');
+    Logger.info('Uploading ${local.length} local files...');
 
-      if (!await localFile.exists()) {
-        try {
-          await _syncService.downloadFile(
-            baseUrl,
-            remoteEvidence.filename,
-            localFile.path,
-          );
-          filesTransferred++;
-        } catch (e) {
-          Logger.error('Failed to download file: ${remoteEvidence.filename}', e);
-        }
-      }
-    }
-
-    // Upload files to remote that they don't have
     for (final localEvidence in local) {
       final remoteHasFile = remote.any(
         (e) => e.filename == localEvidence.filename,
@@ -532,15 +656,20 @@ class SyncRepository {
               localFile,
               localEvidence.filename,
             );
-            filesTransferred++;
+            filesUploaded++;
+            Logger.info('Uploaded file: ${localEvidence.filename}');
           } catch (e) {
             Logger.error('Failed to upload file: ${localEvidence.filename}', e);
+            // Continue with next file even if this one fails
           }
+        } else {
+          Logger.warning('Local file not found, skipping upload: ${localEvidence.filename}');
         }
       }
     }
 
-    return filesTransferred;
+    Logger.info('Uploaded $filesUploaded files to server');
+    return filesUploaded;
   }
 }
 

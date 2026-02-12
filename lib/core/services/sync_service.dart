@@ -15,8 +15,28 @@ class SyncService {
   static const Duration _fileTimeout = Duration(minutes: 5);
 
   final http.Client _client;
+  String? _password; // Contraseña del servidor para autenticación
 
   SyncService({http.Client? client}) : _client = client ?? http.Client();
+
+  /// Set the server password for authentication
+  ///
+  /// This password will be included in all sync requests as Bearer token
+  void setPassword(String password) {
+    _password = password;
+  }
+
+  /// Get authentication headers for sync requests
+  Map<String, String> _getAuthHeaders() {
+    if (_password == null || _password!.isEmpty) {
+      throw SyncException(
+        'Password not set. Please configure server password first.',
+      );
+    }
+    return {
+      'Authorization': 'Bearer $_password',
+    };
+  }
 
   /// Get system information from desktop server
   ///
@@ -60,7 +80,9 @@ class SyncService {
       Logger.info('Getting metadata from: $baseUrl');
 
       final uri = Uri.parse('$baseUrl/api/sync/metadata');
-      final response = await _client.get(uri).timeout(_timeout);
+      final response = await _client
+          .get(uri, headers: _getAuthHeaders())
+          .timeout(_timeout);
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -96,10 +118,14 @@ class SyncService {
       Logger.info('Pushing metadata to: $baseUrl');
 
       final uri = Uri.parse('$baseUrl/api/sync/push');
+      final headers = {
+        'Content-Type': 'application/json',
+        ..._getAuthHeaders(),
+      };
       final response = await _client
           .post(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: jsonEncode(metadata.toJson()),
           )
           .timeout(_timeout);
@@ -137,6 +163,9 @@ class SyncService {
 
       final uri = Uri.parse('$baseUrl/api/sync/files');
       final request = http.MultipartRequest('POST', uri);
+
+      // Add authentication headers
+      request.headers.addAll(_getAuthHeaders());
 
       final fileStream = http.ByteStream(file.openRead());
       final fileLength = await file.length();
@@ -186,7 +215,9 @@ class SyncService {
       Logger.info('Downloading file: $filename to $savePath');
 
       final uri = Uri.parse('$baseUrl/api/sync/files/$filename');
-      final response = await _client.get(uri).timeout(_fileTimeout);
+      final response = await _client
+          .get(uri, headers: _getAuthHeaders())
+          .timeout(_fileTimeout);
 
       if (response.statusCode == 200) {
         final file = File(savePath);
@@ -220,6 +251,35 @@ class SyncService {
       return true;
     } catch (e) {
       Logger.warning('Connection test failed', e);
+      return false;
+    }
+  }
+
+  /// Validate password by attempting to fetch metadata
+  ///
+  /// Returns true if password is correct, false otherwise.
+  /// This method temporarily sets the password and tries to authenticate.
+  Future<bool> validatePassword(String baseUrl, String password) async {
+    try {
+      Logger.info('Validating password for: $baseUrl');
+
+      // Temporarily set password
+      final oldPassword = _password;
+      _password = password;
+
+      try {
+        // Try to fetch metadata with this password
+        await getMetadata(baseUrl);
+        return true;
+      } catch (e) {
+        Logger.warning('Password validation failed', e);
+        return false;
+      } finally {
+        // Restore old password
+        _password = oldPassword;
+      }
+    } catch (e) {
+      Logger.error('Error validating password', e);
       return false;
     }
   }

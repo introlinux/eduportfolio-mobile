@@ -1,6 +1,7 @@
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/core/services/app_settings_service.dart';
 import 'package:eduportfolio/core/services/sync_service.dart';
+import 'package:eduportfolio/core/services/sync_password_storage.dart';
 import 'package:eduportfolio/features/sync/data/repositories/sync_repository.dart';
 import 'package:eduportfolio/features/sync/domain/entities/sync_models.dart';
 import 'package:eduportfolio/features/sync/domain/usecases/sync_usecases.dart';
@@ -21,6 +22,11 @@ final appSettingsServiceProvider = Provider<AppSettingsService>((ref) {
   return AppSettingsService(prefs);
 });
 
+/// Provider for SyncPasswordStorage
+final syncPasswordStorageProvider = Provider<SyncPasswordStorage>((ref) {
+  return SyncPasswordStorage();
+});
+
 /// Provider for SyncService
 final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService();
@@ -29,6 +35,7 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 /// Provider for SyncRepository
 final syncRepositoryProvider = Provider<SyncRepository>((ref) {
   final syncService = ref.watch(syncServiceProvider);
+  final passwordStorage = ref.watch(syncPasswordStorageProvider);
   final studentRepository = ref.watch(studentRepositoryProvider);
   final courseRepository = ref.watch(courseRepositoryProvider);
   final subjectRepository = ref.watch(subjectRepositoryProvider);
@@ -36,6 +43,7 @@ final syncRepositoryProvider = Provider<SyncRepository>((ref) {
 
   return SyncRepository(
     syncService: syncService,
+    passwordStorage: passwordStorage,
     studentRepository: studentRepository,
     courseRepository: courseRepository,
     subjectRepository: subjectRepository,
@@ -64,10 +72,12 @@ final syncAllDataUseCaseProvider = Provider<SyncAllDataUseCase>((ref) {
 /// Notifier for sync configuration
 class SyncConfigNotifier extends Notifier<SyncConfig> {
   late final AppSettingsService _settingsService;
+  late final SyncPasswordStorage _passwordStorage;
 
   @override
   SyncConfig build() {
     _settingsService = ref.watch(appSettingsServiceProvider);
+    _passwordStorage = ref.watch(syncPasswordStorageProvider);
     _loadConfig();
     return const SyncConfig();
   }
@@ -96,6 +106,26 @@ class SyncConfigNotifier extends Notifier<SyncConfig> {
   Future<void> updateLastSync(DateTime timestamp) async {
     await _settingsService.setLastSyncTimestamp(timestamp);
     state = state.copyWith(lastSyncTimestamp: timestamp);
+  }
+
+  /// Save server password securely
+  Future<bool> setPassword(String password) async {
+    return await _passwordStorage.savePassword(password);
+  }
+
+  /// Get stored password
+  Future<String?> getPassword() async {
+    return await _passwordStorage.getPassword();
+  }
+
+  /// Delete stored password
+  Future<bool> clearPassword() async {
+    return await _passwordStorage.deletePassword();
+  }
+
+  /// Check if password is stored
+  Future<bool> hasPassword() async {
+    return await _passwordStorage.hasPassword();
   }
 }
 

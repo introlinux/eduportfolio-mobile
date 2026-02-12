@@ -59,7 +59,7 @@ class DatabaseHelper {
         CREATE TABLE students (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           course_id INTEGER NOT NULL,
-          name TEXT NOT NULL,
+          name TEXT NOT NULL UNIQUE,
           face_embeddings BLOB,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -162,6 +162,49 @@ class DatabaseHelper {
         );
       });
       Logger.info('Migration to v2 completed');
+    }
+
+    if (oldVersion < 3) {
+      Logger.info('Migrating to v3: Adding UNIQUE constraint to student names');
+      await db.transaction((txn) async {
+        // Create new students table with UNIQUE constraint on name
+        await txn.execute('''
+          CREATE TABLE students_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_id INTEGER NOT NULL,
+            name TEXT NOT NULL UNIQUE,
+            face_embeddings BLOB,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+          )
+        ''');
+
+        // Copy data, keeping only first occurrence of each name per course
+        // (in case there are duplicates)
+        await txn.execute('''
+          INSERT INTO students_new (id, course_id, name, face_embeddings, created_at, updated_at)
+          SELECT id, course_id, name, face_embeddings, created_at, updated_at
+          FROM students
+          WHERE id IN (
+            SELECT MIN(id)
+            FROM students
+            GROUP BY name, course_id
+          )
+        ''');
+
+        // Drop old table
+        await txn.execute('DROP TABLE students');
+
+        // Rename new table
+        await txn.execute('ALTER TABLE students_new RENAME TO students');
+
+        // Recreate index
+        await txn.execute(
+          'CREATE INDEX idx_students_course_id ON students(course_id)',
+        );
+      });
+      Logger.info('Migration to v3 completed');
     }
   }
 
