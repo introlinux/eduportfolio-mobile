@@ -35,7 +35,7 @@ Y, por otra parte, un **Kiosko de Evidencias**, una **estación de trabajo digit
 2. Mostrar sus trabajos a una cámara para su **captura y digitalización**.
 3. Ver cómo el sistema **clasifica automáticamente** el trabajo en su portfolio digital por asignatura.
 
-El Kiosko de Evidencias está pensado para que su uso forme parte del día a día de los alumnos y es un programa que se llevará a cabo en la fase 2 del proyecto. Mientras que la aplicación móvil está pensada para usarla por parte del docente y forma parte de la fase 1 del proyecto.
+El Kiosko de Evidencias está pensado para que su uso forme parte del día a día de los alumnos y es un programa que ya se está llevando a cabo en la fase 2 del proyecto y se puede [testear aquí](https://github.com/introlinux/eduportfolio). Mientras que la aplicación móvil está pensada para usarla por parte del docente y forma parte de la fase 1 del proyecto.
 
 Todo esto opera bajo un paradigma **"Local-First"** y de **"Privacidad por Diseño"**, asegurando que todos los datos (incluyendo imágenes y perfiles biométricos) se procesen y almacenen exclusivamente en el dispositivo local, **sin ninguna conexión a servidores externos o a la nube**.
 
