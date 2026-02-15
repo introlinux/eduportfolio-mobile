@@ -147,7 +147,13 @@ eduportfolio/
 
 ## 🚀 Instalación y Ejecución
 
-### Requisitos Previos
+### Descarga de Binarios Ejecutables (Opción Recomendada)
+
+Si prefieres instalar la aplicación directamente sin necesidad de compilar el código fuente, puedes descargar los binarios ejecutables precompilados desde el siguiente enlace:
+
+**📥 [Descargar EduPortfolio Mobile](https://drive.google.com/drive/folders/1BJdJ9gIO39UN28UjLXMRDaEhdnPvmFJZ?usp=drive_link)**
+
+### Requisitos Previos (Para Compilar desde Código Fuente)
 
 - Flutter SDK 3.x o superior
 - Dart SDK 3.x o superior
