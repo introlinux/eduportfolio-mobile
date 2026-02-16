@@ -47,7 +47,7 @@ class EvidenceCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Thumbnail: for videos, use thumbnailPath; for images, use filePath
+                  // Thumbnail: for videos use thumbnailPath, for audio use thumbnailPath (cover), for images use filePath
                   if (evidence.type == EvidenceType.video && evidence.thumbnailPath != null)
                     Image.file(
                       File(evidence.thumbnailPath!),
@@ -58,6 +58,16 @@ class EvidenceCard extends StatelessWidget {
                     )
                   else if (evidence.type == EvidenceType.video)
                     _buildVideoPlaceholder(theme)
+                  else if (evidence.type == EvidenceType.audio && evidence.thumbnailPath != null)
+                    Image.file(
+                      File(evidence.thumbnailPath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildAudioPlaceholder(theme);
+                      },
+                    )
+                  else if (evidence.type == EvidenceType.audio)
+                    _buildAudioPlaceholder(theme)
                   else
                     Image.file(
                       File(evidence.filePath),
@@ -91,8 +101,44 @@ class EvidenceCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Video duration badge
-                  if (evidence.type == EvidenceType.video && evidence.duration != null)
+                  // Audio mic icon overlay
+                  if (evidence.type == EvidenceType.audio)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withValues(alpha: 0.4),
+                        ),
+                        child: Icon(
+                          Icons.mic,
+                          size: 36,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+
+                  // Audio waveform badge (bottom-left)
+                  if (evidence.type == EvidenceType.audio)
+                    Positioned(
+                      bottom: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Icon(
+                          Icons.graphic_eq,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+
+                  // Duration badge (video and audio)
+                  if ((evidence.type == EvidenceType.video || evidence.type == EvidenceType.audio) && evidence.duration != null)
                     Positioned(
                       bottom: 6,
                       right: 6,
@@ -265,6 +311,19 @@ class EvidenceCard extends StatelessWidget {
       child: Center(
         child: Icon(
           Icons.videocam,
+          size: 48,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAudioPlaceholder(ThemeData theme) {
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: Icon(
+          Icons.mic,
           size: 48,
           color: theme.colorScheme.onSurfaceVariant,
         ),

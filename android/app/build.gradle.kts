@@ -21,8 +21,8 @@ android {
 
     defaultConfig {
         applicationId = "com.eduportfolio.eduportfolio"
-        // Android 8.0 (Oreo) minimum for compatibility with ML and camera features
-        minSdk = 26
+        // Android 10+ minimum for OPUS audio recording support (record package)
+        minSdk = 29
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

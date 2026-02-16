@@ -14,6 +14,7 @@ import 'package:eduportfolio/features/subjects/presentation/providers/subject_pr
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:just_audio/just_audio.dart' as ja;
 import 'package:video_player/video_player.dart';
 
 /// Evidence detail screen - Full-screen view with swipe navigation
@@ -57,6 +58,10 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   ChewieController? _chewieController;
   int? _activeVideoIndex;
 
+  // Audio player controllers
+  ja.AudioPlayer? _audioPlayer;
+  int? _activeAudioIndex;
+
   @override
   void initState() {
     super.initState();
@@ -67,11 +72,14 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     final initialEvidence = widget.evidences[widget.initialIndex];
     _showMetadata = initialEvidence.needsReview;
 
-    // Initialize video player if initial evidence is a video
+    // Initialize media player if initial evidence is video or audio
     if (initialEvidence.type == EvidenceType.video) {
-      // Delay to ensure widget is built before async init
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _initVideoPlayer(widget.initialIndex);
+      });
+    } else if (initialEvidence.type == EvidenceType.audio) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initAudioPlayer(widget.initialIndex);
       });
     }
 
@@ -96,6 +104,7 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     _pageController.dispose();
     _animationController.dispose();
     _disposeVideoControllers();
+    _disposeAudioPlayer();
     for (var controller in _transformControllers.values) {
       controller.dispose();
     }
@@ -108,6 +117,30 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     _chewieController = null;
     _videoPlayerController = null;
     _activeVideoIndex = null;
+  }
+
+  void _disposeAudioPlayer() {
+    _audioPlayer?.dispose();
+    _audioPlayer = null;
+    _activeAudioIndex = null;
+  }
+
+  Future<void> _initAudioPlayer(int index) async {
+    final evidence = _getEvidence(index);
+    if (evidence.type != EvidenceType.audio) return;
+    if (_activeAudioIndex == index) return;
+
+    _disposeAudioPlayer();
+    _activeAudioIndex = index;
+
+    try {
+      _audioPlayer = ja.AudioPlayer();
+      await _audioPlayer!.setFilePath(evidence.filePath);
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      print('Error initializing audio player: $e');
+    }
   }
 
   Future<void> _initVideoPlayer(int index) async {
@@ -267,11 +300,16 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
             if (newEvidence.needsReview) {
               _showMetadata = true;
             }
-            // Initialize video player if navigating to a video
+            // Initialize media player based on type
             if (newEvidence.type == EvidenceType.video) {
+              _disposeAudioPlayer();
               _initVideoPlayer(index);
+            } else if (newEvidence.type == EvidenceType.audio) {
+              _disposeVideoControllers();
+              _initAudioPlayer(index);
             } else {
               _disposeVideoControllers();
+              _disposeAudioPlayer();
             }
           });
         },
@@ -302,11 +340,13 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
 
           return Column(
             children: [
-              // Content: Image with zoom/pan OR Video player
+              // Content: Image with zoom/pan, Video player, or Audio player
               Expanded(
                 child: evidence.type == EvidenceType.video
                     ? _buildVideoPlayer(evidence, index)
-                    : GestureDetector(
+                    : evidence.type == EvidenceType.audio
+                        ? _buildAudioPlayer(evidence, index)
+                        : GestureDetector(
                         onDoubleTapDown: (details) {
                           _handleDoubleTap(index, details.localPosition);
                         },
@@ -484,6 +524,28 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // Duration (video/audio)
+                    if (evidence.duration != null &&
+                        (evidence.type == EvidenceType.video ||
+                            evidence.type == EvidenceType.audio))
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.timer,
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatDuration(evidence.duration!),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    if (evidence.duration != null &&
+                        (evidence.type == EvidenceType.video ||
+                            evidence.type == EvidenceType.audio))
+                      const SizedBox(height: 8),
                     // File size
                     if (evidence.fileSizeMB != null)
                       Row(
@@ -710,6 +772,159 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
         privacyService: privacyService,
       ),
     );
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildAudioPlayer(Evidence evidence, int index) {
+    // Trigger initialization if not already done
+    if (_activeAudioIndex != index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initAudioPlayer(index);
+      });
+    }
+
+    return Stack(
+      children: [
+        // Cover image as background
+        if (evidence.thumbnailPath != null)
+          Positioned.fill(
+            child: Image.file(
+              File(evidence.thumbnailPath!),
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.mic, size: 64, color: Colors.white54),
+              ),
+            ),
+          )
+        else
+          const Center(
+            child: Icon(Icons.mic, size: 64, color: Colors.white54),
+          ),
+
+        // Audio controls overlay at bottom
+        if (_audioPlayer != null && _activeAudioIndex == index)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.8),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Play/pause button
+                  StreamBuilder<ja.PlayerState>(
+                    stream: _audioPlayer!.playerStateStream,
+                    builder: (context, snapshot) {
+                      final playerState = snapshot.data;
+                      final playing = playerState?.playing ?? false;
+                      final processingState = playerState?.processingState;
+
+                      if (processingState == ja.ProcessingState.completed) {
+                        // Reset to beginning when completed
+                        return IconButton(
+                          iconSize: 56,
+                          icon: const Icon(Icons.replay, color: Colors.white),
+                          onPressed: () {
+                            _audioPlayer!.seek(Duration.zero);
+                            _audioPlayer!.play();
+                          },
+                        );
+                      }
+
+                      return IconButton(
+                        iconSize: 56,
+                        icon: Icon(
+                          playing ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          if (playing) {
+                            _audioPlayer!.pause();
+                          } else {
+                            _audioPlayer!.play();
+                          }
+                        },
+                      );
+                    },
+                  ),
+                  // Seek bar
+                  StreamBuilder<Duration>(
+                    stream: _audioPlayer!.positionStream,
+                    builder: (context, snapshot) {
+                      final position = snapshot.data ?? Duration.zero;
+                      final duration = _audioPlayer!.duration ?? Duration.zero;
+
+                      return Row(
+                        children: [
+                          Text(
+                            _formatDurationMs(position),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Expanded(
+                            child: Slider(
+                              value: duration.inMilliseconds > 0
+                                  ? position.inMilliseconds
+                                      .toDouble()
+                                      .clamp(0, duration.inMilliseconds.toDouble())
+                                  : 0,
+                              max: duration.inMilliseconds > 0
+                                  ? duration.inMilliseconds.toDouble()
+                                  : 1,
+                              activeColor: Colors.blue,
+                              inactiveColor: Colors.white24,
+                              onChanged: (value) {
+                                _audioPlayer!.seek(
+                                  Duration(milliseconds: value.toInt()),
+                                );
+                              },
+                            ),
+                          ),
+                          Text(
+                            _formatDurationMs(duration),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+      ],
+    );
+  }
+
+  String _formatDurationMs(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   Widget _buildVideoPlayer(Evidence evidence, int index) {
