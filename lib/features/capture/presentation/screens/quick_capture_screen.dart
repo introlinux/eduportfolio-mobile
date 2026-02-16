@@ -368,6 +368,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           } catch (e) {
             debugPrint('Error encoding debug face: $e');
           }
+        } else {
+          _debugCroppedFaceBytes = null;
         }
       }
       */
@@ -1292,6 +1294,62 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
               ),
             ),
           */
+
+          // REC indicator positioned bottom-right (over video button)
+          if (_isRecording)
+            Positioned(
+              right: 20,
+              bottom: 140,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Blinking red dot
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.3, end: 1.0),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: value),
+                          ),
+                        );
+                      },
+                      // Use a key to force restart animation loop
+                      key: ValueKey(_recordingDuration.inSeconds % 2 == 0),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'REC  ${_formatRecordingDuration(_recordingDuration)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1418,61 +1476,6 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             ),
           ),
 
-          // REC indicator (while recording video)
-          if (_isRecording)
-            Container(
-              margin: const EdgeInsets.only(top: 60),
-              alignment: Alignment.topCenter,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.red.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Blinking red dot
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.3, end: 1.0),
-                      duration: const Duration(milliseconds: 800),
-                      builder: (context, value, child) {
-                        return Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: value),
-                          ),
-                        );
-                      },
-                      // Use a key to force restart animation loop
-                      key: ValueKey(_recordingDuration.inSeconds % 2 == 0),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'REC  ${_formatRecordingDuration(_recordingDuration)}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
 
           // Audio REC indicator (while recording audio)
           if (_isAudioRecording)
@@ -1570,7 +1573,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
           // Banner de estudiante: reconocimiento vivo, fijado (long-press), o durante grabación
           if (_isRecording && _recordingStudentName != null)
             Container(
-              margin: const EdgeInsets.only(top: 110),
+              margin: const EdgeInsets.only(top: 60),
               alignment: Alignment.topCenter,
               child: Container(
                 padding: const EdgeInsets.symmetric(

@@ -42,9 +42,9 @@ class AppSettingsService {
       case 1080:
         return ResolutionPreset.veryHigh; // 1080p
       case 1440:
-        return ResolutionPreset.ultraHigh; // 2160p/4K (closest to 1440p)
+        return ResolutionPreset.ultraHigh; // 2K/1440p
       case 2160:
-        return ResolutionPreset.max; // Maximum resolution available
+        return ResolutionPreset.ultraHigh; // 4K/2160p (using ultraHigh instead of max to avoid CameraX downscaling Preview/ImageAnalysis to non-standard resolutions)
       default:
         return ResolutionPreset.veryHigh; // Default to 1080p
     }
