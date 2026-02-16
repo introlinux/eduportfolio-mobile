@@ -69,6 +69,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   // Orientation state
   Orientation _currentOrientation = Orientation.portrait;
 
+  // Video recording state
+  bool _isRecording = false;
+  Duration _recordingDuration = Duration.zero;
+  Timer? _recordingTimer;
+  String? _recordingStudentName;
+  int? _recordingStudentId;
+
   @override
   void initState() {
     super.initState();
@@ -115,10 +122,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       final resolutionPreset = await settingsService.getResolutionPreset();
 
       // Initialize camera controller
+      // enableAudio: true needed for video recording with sound
       _cameraController = CameraController(
         camera,
         resolutionPreset,
-        enableAudio: false,
+        enableAudio: true,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
@@ -510,6 +518,161 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     }
   }
 
+  // =========================================================================
+  // VIDEO RECORDING
+  // =========================================================================
+
+  Future<void> _startVideoRecording() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing ||
+        _isRecording) {
+      return;
+    }
+
+    // Stop live recognition during recording (student already identified)
+    _stopLiveRecognition();
+
+    try {
+      await _cameraController!.startVideoRecording();
+
+      setState(() {
+        _isRecording = true;
+        _recordingDuration = Duration.zero;
+        // Freeze the student identity for the recording
+        _recordingStudentName = _isManualSelectionActive
+            ? _liveRecognitionName
+            : (_liveRecognitionName ?? _frozenStudentName);
+        _recordingStudentId = _isManualSelectionActive
+            ? _liveRecognizedStudentId
+            : (_liveRecognizedStudentId ?? _frozenStudentId);
+      });
+
+      // Start duration timer
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() {
+            _recordingDuration += const Duration(seconds: 1);
+          });
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al iniciar grabación: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopVideoRecording() async {
+    if (_cameraController == null || !_isRecording) return;
+
+    // Stop timer
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+
+    try {
+      final videoFile = await _cameraController!.stopVideoRecording();
+
+      final durationMs = _recordingDuration.inMilliseconds;
+      final studentId = _recordingStudentId;
+      final studentName = _recordingStudentName;
+
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = Duration.zero;
+      });
+
+      // Save the video evidence
+      await _saveVideoEvidence(
+        videoFile.path,
+        durationMs: durationMs,
+        studentId: studentId,
+        studentName: studentName,
+      );
+
+      // Restart live recognition
+      _startLiveRecognition();
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = Duration.zero;
+      });
+
+      // Restart live recognition even on error
+      _startLiveRecognition();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al detener grabación: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveVideoEvidence(
+    String videoPath, {
+    required int durationMs,
+    int? studentId,
+    String? studentName,
+  }) async {
+    try {
+      final saveVideoUseCase = ref.read(saveVideoEvidenceUseCaseProvider);
+      final activeCourse = await ref.read(activeCourseProvider.future);
+
+      await saveVideoUseCase(
+        tempVideoPath: videoPath,
+        subjectId: widget.subjectId,
+        durationMs: durationMs,
+        studentId: studentId,
+        courseId: activeCourse?.id,
+      );
+
+      // Invalidate home providers to refresh counts immediately
+      ref.invalidate(pendingEvidencesCountProvider);
+      ref.invalidate(storageInfoProvider);
+
+      if (mounted) {
+        setState(() => _capturedCount++);
+
+        final message = studentId != null && studentName != null
+            ? '🎥 Vídeo guardado - $studentName'
+            : '🎥 Vídeo guardado';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.green,
+            duration: const Duration(milliseconds: 2000),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar vídeo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Format a Duration as mm:ss
+  String _formatRecordingDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   void _cancelPreview() {
     if (_previewImagePath != null) {
       // Delete the temporary file
@@ -725,6 +888,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   @override
   void dispose() {
     _stopLiveRecognition();
+    _recordingTimer?.cancel();
     _cameraController?.dispose();
 
     // Invalidate providers when leaving to refresh home counters
@@ -933,8 +1097,105 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             ),
           ),
 
-          // Banner de estudiante: reconocimiento vivo o fijado (long-press)
-          if (!_isCapturing && (_isLongPressActive || _liveRecognitionName != null))
+          // REC indicator (while recording video)
+          if (_isRecording)
+            Container(
+              margin: const EdgeInsets.only(top: 60),
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Blinking red dot
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.3, end: 1.0),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: value),
+                          ),
+                        );
+                      },
+                      // Use a key to force restart animation loop
+                      key: ValueKey(_recordingDuration.inSeconds % 2 == 0),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'REC  ${_formatRecordingDuration(_recordingDuration)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Banner de estudiante: reconocimiento vivo, fijado (long-press), o durante grabación
+          if (_isRecording && _recordingStudentName != null)
+            Container(
+              margin: const EdgeInsets.only(top: 110),
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.videocam,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _recordingStudentName!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (!_isCapturing && !_isRecording && (_isLongPressActive || _liveRecognitionName != null))
             Container(
               margin: const EdgeInsets.only(top: 80),
               alignment: Alignment.topCenter,
@@ -993,7 +1254,6 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             ),
 
 
-
           const Spacer(),
 
           // Bottom controls
@@ -1012,38 +1272,83 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Capture button (tap = captura rápida, long-press = encuadre intencionado)
-                GestureDetector(
-                  onTap: _isCapturing ? null : _captureImage,
-                  onLongPressStart: _isCapturing ? null : (details) => _onLongPressStart(),
-                  onLongPressEnd: (details) => _onLongPressEnd(),
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _isLongPressActive ? Colors.blue : Colors.white,
-                        width: _isLongPressActive ? 6 : 4,
-                      ),
-                      color: _isCapturing
-                          ? Colors.grey
-                          : _isLongPressActive
-                              ? Colors.blue.withValues(alpha: 0.4)
-                              : Colors.white.withValues(alpha: 0.3),
-                    ),
-                    child: _isCapturing
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.camera_alt,
-                            size: 40,
-                            color: Colors.white,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Photo capture button (tap = captura rápida, long-press = encuadre intencionado)
+                    GestureDetector(
+                      onTap: (_isCapturing || _isRecording) ? null : _captureImage,
+                      onLongPressStart: (_isCapturing || _isRecording) ? null : (details) => _onLongPressStart(),
+                      onLongPressEnd: (details) => _onLongPressEnd(),
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _isLongPressActive ? Colors.blue : Colors.white,
+                            width: _isLongPressActive ? 6 : 4,
                           ),
-                  ),
+                          color: (_isCapturing || _isRecording)
+                              ? Colors.grey.withValues(alpha: 0.3)
+                              : _isLongPressActive
+                                  ? Colors.blue.withValues(alpha: 0.4)
+                                  : Colors.white.withValues(alpha: 0.3),
+                        ),
+                        child: _isCapturing
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                Icons.camera_alt,
+                                size: 36,
+                                color: _isRecording
+                                    ? Colors.white.withValues(alpha: 0.4)
+                                    : Colors.white,
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 32),
+
+                    // Video capture button
+                    GestureDetector(
+                      onTap: (_isCapturing || _isLongPressActive)
+                          ? null
+                          : (_isRecording ? _stopVideoRecording : _startVideoRecording),
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _isRecording ? Colors.red : Colors.white,
+                            width: _isRecording ? 6 : 4,
+                          ),
+                          color: _isRecording
+                              ? Colors.red.withValues(alpha: 0.4)
+                              : (_isCapturing || _isLongPressActive)
+                                  ? Colors.grey.withValues(alpha: 0.3)
+                                  : Colors.white.withValues(alpha: 0.3),
+                        ),
+                        child: _isRecording
+                            ? const Icon(
+                                Icons.stop,
+                                size: 36,
+                                color: Colors.white,
+                              )
+                            : Icon(
+                                Icons.videocam,
+                                size: 36,
+                                color: (_isCapturing || _isLongPressActive)
+                                    ? Colors.white.withValues(alpha: 0.4)
+                                    : Colors.white,
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
                 if (_isLongPressActive) ...[
                   const SizedBox(height: 16),
@@ -1054,6 +1359,18 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+                if (_isRecording) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'PULSAR STOP PARA FINALIZAR',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ],

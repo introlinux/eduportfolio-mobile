@@ -42,26 +42,80 @@ class EvidenceCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-            // Image thumbnail
+            // Image/Video thumbnail
             Expanded(
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Image
-                  Image.file(
-                    File(evidence.filePath),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.broken_image,
-                          size: 48,
-                          color: theme.colorScheme.onSurfaceVariant,
+                  // Thumbnail: for videos, use thumbnailPath; for images, use filePath
+                  if (evidence.type == EvidenceType.video && evidence.thumbnailPath != null)
+                    Image.file(
+                      File(evidence.thumbnailPath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildVideoPlaceholder(theme);
+                      },
+                    )
+                  else if (evidence.type == EvidenceType.video)
+                    _buildVideoPlaceholder(theme)
+                  else
+                    Image.file(
+                      File(evidence.filePath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        );
+                      },
+                    ),
+
+                  // Video play icon overlay
+                  if (evidence.type == EvidenceType.video)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withValues(alpha: 0.4),
                         ),
-                      );
-                    },
-                  ),
+                        child: Icon(
+                          Icons.play_arrow,
+                          size: 36,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+
+                  // Video duration badge
+                  if (evidence.type == EvidenceType.video && evidence.duration != null)
+                    Positioned(
+                      bottom: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _formatDuration(evidence.duration!),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
                   // Needs review indicator
                   if (!evidence.isReviewed)
                     Positioned(
@@ -203,5 +257,24 @@ class EvidenceCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildVideoPlaceholder(ThemeData theme) {
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: Icon(
+          Icons.videocam,
+          size: 48,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 }

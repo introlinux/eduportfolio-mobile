@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:chewie/chewie.dart';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
@@ -13,6 +14,7 @@ import 'package:eduportfolio/features/subjects/presentation/providers/subject_pr
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
 
 /// Evidence detail screen - Full-screen view with swipe navigation
 class EvidenceDetailScreen extends ConsumerStatefulWidget {
@@ -50,6 +52,11 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   Animation<Matrix4>? _zoomAnimation;
   int? _animatingIndex; // Track which image is being animated
 
+  // Video player controllers
+  VideoPlayerController? _videoPlayerController;
+  ChewieController? _chewieController;
+  int? _activeVideoIndex;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +66,14 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     // Auto-expand metadata panel if current evidence needs review
     final initialEvidence = widget.evidences[widget.initialIndex];
     _showMetadata = initialEvidence.needsReview;
+
+    // Initialize video player if initial evidence is a video
+    if (initialEvidence.type == EvidenceType.video) {
+      // Delay to ensure widget is built before async init
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initVideoPlayer(widget.initialIndex);
+      });
+    }
 
     // Initialize transformation controllers for all evidences
     for (int i = 0; i < widget.evidences.length; i++) {
@@ -80,10 +95,54 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   void dispose() {
     _pageController.dispose();
     _animationController.dispose();
+    _disposeVideoControllers();
     for (var controller in _transformControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _disposeVideoControllers() {
+    _chewieController?.dispose();
+    _videoPlayerController?.dispose();
+    _chewieController = null;
+    _videoPlayerController = null;
+    _activeVideoIndex = null;
+  }
+
+  Future<void> _initVideoPlayer(int index) async {
+    final evidence = _getEvidence(index);
+    if (evidence.type != EvidenceType.video) return;
+    if (_activeVideoIndex == index) return; // Already initialized
+
+    // Dispose previous video controllers if any
+    _disposeVideoControllers();
+    _activeVideoIndex = index;
+
+    try {
+      _videoPlayerController = VideoPlayerController.file(
+        File(evidence.filePath),
+      );
+      await _videoPlayerController!.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController!,
+        autoPlay: false,
+        looping: false,
+        showControls: true,
+        allowFullScreen: false,
+        materialProgressColors: ChewieProgressColors(
+          playedColor: Colors.blue,
+          handleColor: Colors.blue,
+          backgroundColor: Colors.grey,
+          bufferedColor: Colors.lightBlue.withValues(alpha: 0.3),
+        ),
+      );
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      print('Error initializing video player: $e');
+    }
   }
 
   // Check if current image is zoomed
@@ -208,6 +267,12 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
             if (newEvidence.needsReview) {
               _showMetadata = true;
             }
+            // Initialize video player if navigating to a video
+            if (newEvidence.type == EvidenceType.video) {
+              _initVideoPlayer(index);
+            } else {
+              _disposeVideoControllers();
+            }
           });
         },
         itemBuilder: (context, index) {
@@ -237,45 +302,43 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
 
           return Column(
             children: [
-              // Image with zoom/pan (pinch to zoom, drag to pan when zoomed)
+              // Content: Image with zoom/pan OR Video player
               Expanded(
-                child: GestureDetector(
-                  onDoubleTapDown: (details) {
-                    // Capture tap position for zoom focus
-                    _handleDoubleTap(index, details.localPosition);
-                  },
-                  child: InteractiveViewer(
-                    transformationController: _transformControllers[index],
-                    minScale: 1.0,
-                    maxScale: 4.0,
-                    panEnabled: true,
-                    scaleEnabled: true,
-                    constrained: true,
-                    // Proper boundaries to prevent black frames
-                    boundaryMargin: const EdgeInsets.all(0),
-                    onInteractionUpdate: (details) {
-                      // Update PageView physics only if zoom state changed
-                      _updateZoomState();
-                    },
-                    onInteractionEnd: (details) {
-                      // Final update when interaction ends
-                      _updateZoomState();
-                    },
-                    child: Center(
-                      child: Image.file(
-                        File(evidence.filePath),
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.white,
-                          );
+                child: evidence.type == EvidenceType.video
+                    ? _buildVideoPlayer(evidence, index)
+                    : GestureDetector(
+                        onDoubleTapDown: (details) {
+                          _handleDoubleTap(index, details.localPosition);
                         },
+                        child: InteractiveViewer(
+                          transformationController: _transformControllers[index],
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          panEnabled: true,
+                          scaleEnabled: true,
+                          constrained: true,
+                          boundaryMargin: const EdgeInsets.all(0),
+                          onInteractionUpdate: (details) {
+                            _updateZoomState();
+                          },
+                          onInteractionEnd: (details) {
+                            _updateZoomState();
+                          },
+                          child: Center(
+                            child: Image.file(
+                              File(evidence.filePath),
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.broken_image,
+                                  size: 64,
+                                  color: Colors.white,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
               // Metadata section (collapsible with animation)
               AnimatedSize(
@@ -645,6 +708,53 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
       builder: (context) => SharePreviewDialog(
         originalFiles: [file],
         privacyService: privacyService,
+      ),
+    );
+  }
+
+  Widget _buildVideoPlayer(Evidence evidence, int index) {
+    // Trigger initialization if not already done
+    if (_activeVideoIndex != index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initVideoPlayer(index);
+      });
+    }
+
+    if (_chewieController != null && _activeVideoIndex == index) {
+      return Chewie(controller: _chewieController!);
+    }
+
+    // Show loading state or thumbnail while initializing
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (evidence.thumbnailPath != null)
+            Expanded(
+              child: Image.file(
+                File(evidence.thumbnailPath!),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.videocam,
+                  size: 64,
+                  color: Colors.white54,
+                ),
+              ),
+            )
+          else
+            const Icon(
+              Icons.videocam,
+              size: 64,
+              color: Colors.white54,
+            ),
+          const SizedBox(height: 16),
+          const CircularProgressIndicator(color: Colors.white),
+          const SizedBox(height: 8),
+          const Text(
+            'Cargando vídeo...',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ],
       ),
     );
   }
