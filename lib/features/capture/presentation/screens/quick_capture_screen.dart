@@ -52,9 +52,16 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   // Live recognition state
   String? _liveRecognitionName;
   int? _liveRecognizedStudentId;
+  double _lastRecognitionConfidence = 0.0;
+  DateTime? _lastRecognitionTime;
   bool _isProcessingFrame = false;
   DateTime? _lastProcessTime;
   bool _isStreamActive = false;
+
+  // Recognition stability thresholds
+  static const double _activationThreshold = 0.70; // Threshold to START recognizing
+  static const double _deactivationThreshold = 0.65; // Threshold to STOP recognizing (hysteresis)
+  static const Duration _recognitionMemoryDuration = Duration(seconds: 2); // Keep recognition for 2s
 
   // Modo encuadre intencionado (long-press)
   bool _isLongPressActive = false;
@@ -355,7 +362,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         image,
         studentsWithFaces,
       );
-      
+
       // Update live recognition state
       // Debug overlay disabled for performance
       /*
@@ -374,14 +381,74 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       }
       */
 
-        if (mounted && !_isManualSelectionActive) {
-          setState(() {
+      // Apply hysteresis + temporal memory for stable recognition
+      if (mounted && !_isManualSelectionActive) {
+        final now = DateTime.now();
+
+        setState(() {
           if (result != null && result.student != null) {
-            _liveRecognitionName = result.student!.name;
-            _liveRecognizedStudentId = result.student!.id;
+            final newConfidence = result.confidence;
+            final newStudentId = result.student!.id;
+
+            // Check if this is a new recognition or same student
+            final isSameStudent = _liveRecognizedStudentId == newStudentId;
+
+            if (isSameStudent) {
+              // Same student: apply deactivation threshold (hysteresis)
+              if (newConfidence >= _deactivationThreshold) {
+                // Still above deactivation threshold, update
+                _liveRecognitionName = result.student!.name;
+                _liveRecognizedStudentId = newStudentId;
+                _lastRecognitionConfidence = newConfidence;
+                _lastRecognitionTime = now;
+              } else {
+                // Below deactivation threshold, check temporal memory
+                if (_lastRecognitionTime != null &&
+                    now.difference(_lastRecognitionTime!) < _recognitionMemoryDuration) {
+                  // Within memory window, keep recognition
+                  // (name and ID already set, just don't clear)
+                } else {
+                  // Memory expired, clear recognition
+                  _liveRecognitionName = null;
+                  _liveRecognizedStudentId = null;
+                  _lastRecognitionConfidence = 0.0;
+                  _lastRecognitionTime = null;
+                }
+              }
+            } else {
+              // Different student: apply activation threshold
+              if (newConfidence >= _activationThreshold) {
+                // New student recognized with high confidence
+                _liveRecognitionName = result.student!.name;
+                _liveRecognizedStudentId = newStudentId;
+                _lastRecognitionConfidence = newConfidence;
+                _lastRecognitionTime = now;
+              } else if (_lastRecognitionTime != null &&
+                         now.difference(_lastRecognitionTime!) < _recognitionMemoryDuration) {
+                // Keep current recognition (temporal memory)
+                // (name and ID already set, just don't clear)
+              } else {
+                // No valid recognition, clear
+                _liveRecognitionName = null;
+                _liveRecognizedStudentId = null;
+                _lastRecognitionConfidence = 0.0;
+                _lastRecognitionTime = null;
+              }
+            }
           } else {
-            _liveRecognitionName = null;
-            _liveRecognizedStudentId = null;
+            // No face detected or recognition failed
+            // Check temporal memory before clearing
+            if (_lastRecognitionTime != null &&
+                now.difference(_lastRecognitionTime!) < _recognitionMemoryDuration) {
+              // Keep current recognition (temporal memory)
+              // (name and ID already set, just don't clear)
+            } else {
+              // Memory expired or never existed, clear
+              _liveRecognitionName = null;
+              _liveRecognizedStudentId = null;
+              _lastRecognitionConfidence = 0.0;
+              _lastRecognitionTime = null;
+            }
           }
         });
       }
@@ -1170,6 +1237,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         _isManualSelectionActive = false;
         _liveRecognitionName = null;
         _liveRecognizedStudentId = null;
+        _lastRecognitionConfidence = 0.0;
+        _lastRecognitionTime = null;
       });
     } else {
       // Student manually selected
