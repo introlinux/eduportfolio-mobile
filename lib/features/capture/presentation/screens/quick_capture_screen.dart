@@ -72,6 +72,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   Orientation _currentOrientation = Orientation.portrait;
 
   // Video recording state
+  bool _cameraReinitializedForVideo = false;
   bool _isRecording = false;
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
@@ -547,6 +548,36 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     _stopLiveRecognition();
 
     try {
+      // Check if we need to reinitialize camera for video resolution
+      final settingsService = ref.read(appSettingsServiceProvider);
+      final videoResolutionPreset = await settingsService.getVideoResolutionPreset();
+      final imageResolutionPreset = await settingsService.getResolutionPreset();
+
+      if (videoResolutionPreset != imageResolutionPreset) {
+        // Resolutions differ: reinitialize camera with video preset
+        // Null out controller inside setState so the UI immediately stops
+        // calling buildPreview() on the old controller before dispose runs
+        final oldController = _cameraController!;
+        setState(() {
+          _cameraController = null;
+          _isInitializing = true;
+        });
+        await oldController.dispose();
+
+        final camera = _availableCameras[_currentCameraIndex];
+        _cameraController = CameraController(
+          camera,
+          videoResolutionPreset,
+          enableAudio: true,
+          imageFormatGroup: ImageFormatGroup.jpeg,
+        );
+        await _cameraController!.initialize();
+        if (mounted) setState(() => _isInitializing = false);
+        _cameraReinitializedForVideo = true;
+      } else {
+        _cameraReinitializedForVideo = false;
+      }
+
       await _cameraController!.startVideoRecording();
 
       setState(() {
@@ -608,6 +639,30 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         studentName: studentName,
       );
 
+      // Reinitialize camera with photo resolution if it was changed for video
+      if (_cameraReinitializedForVideo) {
+        _cameraReinitializedForVideo = false;
+        final oldController = _cameraController!;
+        setState(() {
+          _cameraController = null;
+          _isInitializing = true;
+        });
+        await oldController.dispose();
+
+        final settingsService = ref.read(appSettingsServiceProvider);
+        final imageResolutionPreset = await settingsService.getResolutionPreset();
+        final camera = _availableCameras[_currentCameraIndex];
+
+        _cameraController = CameraController(
+          camera,
+          imageResolutionPreset,
+          enableAudio: true,
+          imageFormatGroup: ImageFormatGroup.jpeg,
+        );
+        await _cameraController!.initialize();
+        if (mounted) setState(() => _isInitializing = false);
+      }
+
       // Restart live recognition
       _startLiveRecognition();
     } catch (e) {
@@ -615,6 +670,38 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         _isRecording = false;
         _recordingDuration = Duration.zero;
       });
+
+      // Reinitialize camera with photo resolution even on error
+      if (_cameraReinitializedForVideo) {
+        _cameraReinitializedForVideo = false;
+        try {
+          final oldController = _cameraController;
+          if (mounted) {
+            setState(() {
+              _cameraController = null;
+              _isInitializing = true;
+            });
+          }
+          await oldController?.dispose();
+
+          final settingsService = ref.read(appSettingsServiceProvider);
+          final imageResolutionPreset = await settingsService.getResolutionPreset();
+          final camera = _availableCameras[_currentCameraIndex];
+
+          _cameraController = CameraController(
+            camera,
+            imageResolutionPreset,
+            enableAudio: true,
+            imageFormatGroup: ImageFormatGroup.jpeg,
+          );
+          await _cameraController!.initialize();
+          if (mounted) setState(() => _isInitializing = false);
+        } catch (_) {
+          // If restoration fails, full reinit
+          await _initializeCamera();
+          return;
+        }
+      }
 
       // Restart live recognition even on error
       _startLiveRecognition();

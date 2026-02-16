@@ -6,6 +6,9 @@ class AppSettingsService {
   static const String _keyImageResolution = 'image_resolution';
   static const int _defaultImageResolution = 1080;
 
+  static const String _keyVideoResolution = 'video_resolution';
+  static const int _defaultVideoResolution = 720;
+
   final SharedPreferences _prefs;
 
   AppSettingsService(this._prefs);
@@ -44,6 +47,45 @@ class AppSettingsService {
         return ResolutionPreset.max; // Maximum resolution available
       default:
         return ResolutionPreset.veryHigh; // Default to 1080p
+    }
+  }
+
+  // Video resolution methods
+
+  /// Get the configured video resolution (height in pixels)
+  /// Returns 480, 720, or 1080
+  Future<int> getVideoResolution() async {
+    return _prefs.getInt(_keyVideoResolution) ?? _defaultVideoResolution;
+  }
+
+  /// Set the video resolution (height in pixels)
+  /// Valid values: 480, 720, 1080
+  Future<void> setVideoResolution(int resolution) async {
+    if (resolution != 480 && resolution != 720 && resolution != 1080) {
+      throw ArgumentError(
+        'Invalid resolution: $resolution. Must be 480, 720, or 1080',
+      );
+    }
+    await _prefs.setInt(_keyVideoResolution, resolution);
+  }
+
+  /// Get the ResolutionPreset for video based on configured resolution
+  Future<ResolutionPreset> getVideoResolutionPreset() async {
+    final resolution = await getVideoResolution();
+    return _videoResolutionToPreset(resolution);
+  }
+
+  /// Convert video resolution height to ResolutionPreset
+  ResolutionPreset _videoResolutionToPreset(int resolution) {
+    switch (resolution) {
+      case 480:
+        return ResolutionPreset.medium;
+      case 720:
+        return ResolutionPreset.high;
+      case 1080:
+        return ResolutionPreset.veryHigh;
+      default:
+        return ResolutionPreset.high; // Default to 720p
     }
   }
 
