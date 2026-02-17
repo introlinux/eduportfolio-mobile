@@ -11,6 +11,7 @@ import androidx.media3.common.OverlaySettings
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
@@ -135,7 +136,7 @@ class Media3VideoProcessor(private val context: Context) {
 
             // If no faces visible, return invisible overlay
             if (visibleFaces.isEmpty()) {
-                return OverlaySettings.Builder()
+                return StaticOverlaySettings.Builder()
                     .setAlphaScale(0f)
                     .build()
             }
@@ -147,7 +148,7 @@ class Media3VideoProcessor(private val context: Context) {
             // Calculate overlay position and size
             // The overlay anchor is at the center of the emoji bitmap
             // The background anchor is where to place the emoji on the video frame
-            return OverlaySettings.Builder()
+            return StaticOverlaySettings.Builder()
                 .setOverlayFrameAnchor(0.5f, 0.5f)  // Center of emoji
                 .setBackgroundFrameAnchor(
                     face.x + face.width / 2,  // Center X of face
@@ -155,6 +156,7 @@ class Media3VideoProcessor(private val context: Context) {
                 )
                 .setScale(
                     // Scale emoji to cover face with some padding
+                    maxOf(face.width, face.height) * 1.3f,
                     maxOf(face.width, face.height) * 1.3f
                 )
                 .setAlphaScale(1f)  // Fully opaque
