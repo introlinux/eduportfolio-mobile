@@ -770,6 +770,9 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
       context: context,
       builder: (context) => SharePreviewDialog(
         originalFiles: [file],
+        thumbnailPaths: evidence.thumbnailPath != null 
+            ? {evidence.filePath: evidence.thumbnailPath!} 
+            : null,
         privacyService: privacyService,
         videoPrivacyService: videoPrivacyService,
       ),

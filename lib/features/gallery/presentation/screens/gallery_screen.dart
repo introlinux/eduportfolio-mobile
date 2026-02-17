@@ -491,8 +491,17 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
     if (selectedEvidences.isEmpty) return;
 
-    // Convert to Files
-    final files = selectedEvidences.map((e) => File(e.filePath)).toList();
+    // Convert to Files and thumbnails
+    final files = <File>[];
+    final thumbnailPaths = <String, String>{};
+    
+    for (final e in selectedEvidences) {
+      files.add(File(e.filePath));
+      if (e.thumbnailPath != null) {
+        thumbnailPaths[e.filePath] = e.thumbnailPath!;
+      }
+    }
+
     final privacyService = ref.read(privacyServiceProvider);
     final videoPrivacyService = ref.read(media3VideoPrivacyServiceProvider);
 
@@ -501,6 +510,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       context: context,
       builder: (context) => SharePreviewDialog(
         originalFiles: files,
+        thumbnailPaths: thumbnailPaths,
         privacyService: privacyService,
         videoPrivacyService: videoPrivacyService,
       ),
