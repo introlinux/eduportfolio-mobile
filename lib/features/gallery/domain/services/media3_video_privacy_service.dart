@@ -137,6 +137,7 @@ class Media3VideoPrivacyService {
 
   /// Extract frames from video and detect faces in each frame.
   ///
+  /// Detects one face per frame (the most prominent face).
   /// Returns a list of face detections with normalized coordinates and timestamps.
   Future<List<Map<String, dynamic>>> _extractFramesAndDetectFaces(
     File videoFile,
@@ -178,22 +179,26 @@ class Media3VideoPrivacyService {
         // Bake orientation
         frameImage = img.bakeOrientation(frameImage);
 
-        // Detect faces in this frame
-        final detections = await _faceDetectorService.detectAllFacesFromImage(
+        // Detect face in this frame (detects one face per frame)
+        final detection = await _faceDetectorService.detectFaceFromImage(
           frameImage,
           generateDebugImage: false,
         );
 
-        // Convert detections to normalized coordinates with timestamps
-        for (final detection in detections) {
+        // If face detected, add to list with normalized coordinates
+        if (detection != null) {
           final box = detection.box;
 
-          // Normalize coordinates to 0-1 range
+          // Normalize coordinates to 0-1 range using frame dimensions
+          // (frame may be scaled by video_thumbnail, so we use frame dimensions)
+          final frameWidth = frameImage.width;
+          final frameHeight = frameImage.height;
+
           faceDetections.add({
-            'x': box.x / videoWidth,
-            'y': box.y / videoHeight,
-            'width': box.width / videoWidth,
-            'height': box.height / videoHeight,
+            'x': box.x / frameWidth,
+            'y': box.y / frameHeight,
+            'width': box.width / frameWidth,
+            'height': box.height / frameHeight,
             'startTimeMs': timeMs,
             // Face visible until next sample or end of video
             'endTimeMs': ((i + 1) * samplingIntervalMs).clamp(0, durationMs),
