@@ -494,6 +494,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     // Convert to Files
     final files = selectedEvidences.map((e) => File(e.filePath)).toList();
     final privacyService = ref.read(privacyServiceProvider);
+    final videoPrivacyService = ref.read(media3VideoPrivacyServiceProvider);
 
     // Show preview dialog
     await showDialog(
@@ -501,6 +502,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       builder: (context) => SharePreviewDialog(
         originalFiles: files,
         privacyService: privacyService,
+        videoPrivacyService: videoPrivacyService,
       ),
     );
     

@@ -1,16 +1,20 @@
 import 'dart:io';
 
 import 'package:eduportfolio/features/gallery/domain/services/privacy_service.dart';
+import 'package:eduportfolio/features/gallery/domain/services/media3_video_privacy_service.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:video_player/video_player.dart';
 
 class SharePreviewDialog extends StatefulWidget {
   final List<File> originalFiles;
   final PrivacyService privacyService;
+  final Media3VideoPrivacyService videoPrivacyService;
 
   const SharePreviewDialog({
     required this.originalFiles,
     required this.privacyService,
+    required this.videoPrivacyService,
     super.key,
   });
 
@@ -21,27 +25,51 @@ class SharePreviewDialog extends StatefulWidget {
 class _SharePreviewDialogState extends State<SharePreviewDialog> {
   // Current active files (user may remove some)
   late List<File> _activeFiles;
-  
+
   // State variables
   bool _isPrivacyMode = false;
   bool _isProcessing = false;
   Map<String, File> _processedCache = {}; // Cache processed files by path
   int _currentIndex = 0;
-  
+
   // Progress tracking
   int _processedCount = 0;
   int _totalToProcess = 0;
+
+  // Video player for current video (if any)
+  VideoPlayerController? _videoController;
 
   @override
   void initState() {
     super.initState();
     _activeFiles = List.from(widget.originalFiles);
+    _initializeFirstVideo();
+  }
+
+  /// Initialize video controller for the first file if it's a video
+  Future<void> _initializeFirstVideo() async {
+    if (_activeFiles.isNotEmpty && _isVideoFile(_activeFiles[0])) {
+      _videoController = VideoPlayerController.file(_activeFiles[0]);
+      await _videoController!.initialize();
+      await _videoController!.setLooping(true);
+      await _videoController!.play();
+      if (mounted) setState(() {});
+    }
   }
 
   @override
   void dispose() {
-    // Optional: could trigger cleanup here, but better to do it after share or app exit
+    _videoController?.dispose();
     super.dispose();
+  }
+
+  /// Check if file is a video based on extension
+  bool _isVideoFile(File file) {
+    final ext = file.path.toLowerCase();
+    return ext.endsWith('.mp4') ||
+        ext.endsWith('.mov') ||
+        ext.endsWith('.avi') ||
+        ext.endsWith('.mkv');
   }
 
   // Toggle privacy mode and trigger processing
@@ -55,7 +83,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
     }
   }
 
-  // Process all active images with privacy filter
+  // Process all active files (images and videos) with privacy filter
   Future<void> _processImages() async {
     setState(() {
       _isProcessing = true;
@@ -67,23 +95,21 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
       for (int i = 0; i < _activeFiles.length; i++) {
         final file = _activeFiles[i];
         final key = file.path;
-        
+
         // If not already cached for this mode
         if (!_processedCache.containsKey(key)) {
-           // We only cache the PROCESSED version. 
-           // If we need original, we have 'file'. 
-           // But wait, if we toggle OFF, we just use 'file'.
-           // If we toggle ON, we check cache or process.
-           // However, if we remove a file, we just remove from active list.
-           
-           // Actually, we need to process specifically for privacy=true.
-           // If privacy=false, we don't need to process (just return original).
-           // But let's assume cache stores the "Privacy ON" version.
-           
-           final processed = await widget.privacyService.processImageForSharing(file, true);
-           _processedCache[key] = processed;
+          final File processed;
+
+          // Use appropriate service based on file type
+          if (_isVideoFile(file)) {
+            processed = await widget.videoPrivacyService.processVideoForSharing(file, true);
+          } else {
+            processed = await widget.privacyService.processImageForSharing(file, true);
+          }
+
+          _processedCache[key] = processed;
         }
-        
+
         if (mounted) {
           setState(() {
             _processedCount++;
@@ -91,7 +117,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
         }
       }
     } catch (e) {
-      debugPrint("Error processing images: $e");
+      debugPrint("Error processing files: $e");
     } finally {
       if (mounted) {
         setState(() {
@@ -197,24 +223,48 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
                     // Carousel
                     PageView.builder(
                       itemCount: _activeFiles.length,
-                      onPageChanged: (index) {
+                      onPageChanged: (index) async {
+                        // Dispose previous video controller
+                        await _videoController?.dispose();
+                        _videoController = null;
+
                         setState(() {
                           _currentIndex = index;
                         });
+
+                        // Initialize video controller for video files
+                        final fileToDisplay = _getCurrentFileDisplay(index);
+                        if (_isVideoFile(fileToDisplay)) {
+                          _videoController = VideoPlayerController.file(fileToDisplay);
+                          await _videoController!.initialize();
+                          await _videoController!.setLooping(true);
+                          await _videoController!.play();
+                          if (mounted) setState(() {});
+                        }
                       },
                       itemBuilder: (context, index) {
-                         final fileToDisplay = _getCurrentFileDisplay(index);
-                         return Padding(
-                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                           child: ClipRRect(
-                             borderRadius: BorderRadius.circular(8),
-                             child: Image.file(
-                               fileToDisplay,
-                               fit: BoxFit.contain,
-                               gaplessPlayback: true,
-                             ),
-                           ),
-                         );
+                        final fileToDisplay = _getCurrentFileDisplay(index);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _isVideoFile(fileToDisplay)
+                                ? (_videoController != null &&
+                                        _videoController!.value.isInitialized)
+                                    ? AspectRatio(
+                                        aspectRatio:
+                                            _videoController!.value.aspectRatio,
+                                        child: VideoPlayer(_videoController!),
+                                      )
+                                    : const Center(
+                                        child: CircularProgressIndicator())
+                                : Image.file(
+                                    fileToDisplay,
+                                    fit: BoxFit.contain,
+                                    gaplessPlayback: true,
+                                  ),
+                          ),
+                        );
                       },
                     ),
                     
@@ -284,7 +334,8 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
                 children: [
                   // Privacy Toggle
                   SwitchListTile(
-                    title: const Text('Pixelar caras'),
+                    title: const Text('Ocultar caras'),
+                    subtitle: const Text('Cubre las caras con emojis'),
                     secondary: Icon(
                       _isPrivacyMode ? Icons.visibility_off : Icons.visibility,
                       color: _isPrivacyMode ? theme.colorScheme.primary : null,

@@ -764,12 +764,14 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     final evidence = _currentEvidence;
     final file = File(evidence.filePath);
     final privacyService = ref.read(privacyServiceProvider);
+    final videoPrivacyService = ref.read(media3VideoPrivacyServiceProvider);
 
     await showDialog(
       context: context,
       builder: (context) => SharePreviewDialog(
         originalFiles: [file],
         privacyService: privacyService,
+        videoPrivacyService: videoPrivacyService,
       ),
     );
   }
