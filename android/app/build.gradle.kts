@@ -48,7 +48,7 @@ flutter {
 
 dependencies {
     // Media3 Transformer for video processing with emoji overlays
-    implementation("androidx.media3:media3-transformer:1.5.0")
-    implementation("androidx.media3:media3-effect:1.5.0")
-    implementation("androidx.media3:media3-common:1.5.0")
+    implementation("androidx.media3:media3-transformer:1.9.0")
+    implementation("androidx.media3:media3-effect:1.9.0")
+    implementation("androidx.media3:media3-common:1.9.0")
 }
