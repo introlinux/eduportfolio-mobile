@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -127,12 +128,19 @@ class Media3VideoPrivacyService {
     }
   }
 
-  /// Estimate video duration (simplified - assumes ~30fps and counts frames).
-  /// For production, consider using video_player or native MediaMetadataRetriever.
+  /// Get actual video duration using VideoPlayerController.
   Future<int> _estimateVideoDuration(File videoFile) async {
-    // Default to 10 seconds if we can't determine
-    // TODO: Use video_player or MediaMetadataRetriever for accurate duration
-    return 10000;
+    try {
+      final controller = VideoPlayerController.file(videoFile);
+      await controller.initialize();
+      final durationMs = controller.value.duration.inMilliseconds;
+      await controller.dispose();
+      _log('Actual video duration: ${durationMs}ms');
+      return durationMs > 0 ? durationMs : 2000; // fallback 2s
+    } catch (e) {
+      _log('Error getting video duration: $e, defaulting to 2000ms');
+      return 2000;
+    }
   }
 
   /// Extract frames from video and detect faces in each frame.
@@ -167,42 +175,78 @@ class Media3VideoPrivacyService {
           timeMs: timeMs,
         );
 
-        if (framePath == null) continue;
+        if (framePath == null) {
+          _log('  Frame $i @ ${timeMs}ms: thumbnail extraction failed');
+          continue;
+        }
 
         // Decode frame
         final frameBytes = await File(framePath).readAsBytes();
         var frameImage = img.decodeImage(frameBytes);
         await File(framePath).delete();
 
-        if (frameImage == null) continue;
+        if (frameImage == null) {
+          _log('  Frame $i @ ${timeMs}ms: image decode failed');
+          continue;
+        }
 
         // Bake orientation
         frameImage = img.bakeOrientation(frameImage);
 
-        // Detect face in this frame (detects one face per frame)
-        final detection = await _faceDetectorService.detectFaceFromImage(
-          frameImage,
+        // BlazeFace portrait workaround: rotate large portrait frames
+        // (same as PrivacyService does for images)
+        final needsRotation = (frameImage.width > 1000 || frameImage.height > 1000) &&
+            frameImage.height > frameImage.width;
+        final detectionImage = needsRotation
+            ? img.copyRotate(frameImage, angle: 90)
+            : frameImage;
+
+        _log('  Frame $i @ ${timeMs}ms: ${frameImage.width}x${frameImage.height}'
+            '${needsRotation ? " (rotated for detection)" : ""}');
+
+        // Detect ALL faces in this frame
+        final detections = await _faceDetectorService.detectFacesFromImage(
+          detectionImage,
           generateDebugImage: false,
         );
 
-        // If face detected, add to list with normalized coordinates
-        if (detection != null) {
-          final box = detection.box;
+        if (detections.isNotEmpty) {
+          for (final detection in detections) {
+            final detBox = detection.box;
+            
+            // If we rotated for detection, map bounding box back to original space
+            final box = needsRotation
+                ? FaceRect(
+                    x: detBox.y,
+                    y: frameImage.height - detBox.x - detBox.width,
+                    width: detBox.height,
+                    height: detBox.width,
+                  )
+                : detBox;
 
-          // Normalize coordinates to 0-1 range using frame dimensions
-          // (frame may be scaled by video_thumbnail, so we use frame dimensions)
-          final frameWidth = frameImage.width;
-          final frameHeight = frameImage.height;
+            // Normalize coordinates to 0-1 range using ORIGINAL frame dimensions
+            final frameWidth = frameImage.width;
+            final frameHeight = frameImage.height;
 
-          faceDetections.add({
-            'x': box.x / frameWidth,
-            'y': box.y / frameHeight,
-            'width': box.width / frameWidth,
-            'height': box.height / frameHeight,
-            'startTimeMs': timeMs,
-            // Face visible until next sample or end of video
-            'endTimeMs': ((i + 1) * samplingIntervalMs).clamp(0, durationMs),
-          });
+            final normX = box.x / frameWidth;
+            final normY = box.y / frameHeight;
+            final normW = box.width / frameWidth;
+            final normH = box.height / frameHeight;
+
+            _log('    FACE FOUND: pixel=(${box.x},${box.y},${box.width}x${box.height}) '
+                'norm=($normX,$normY,${normW}x$normH) score=${detection.score.toStringAsFixed(2)}');
+
+            faceDetections.add({
+              'x': normX,
+              'y': normY,
+              'width': normW,
+              'height': normH,
+              'startTimeMs': timeMs,
+              'endTimeMs': ((i + 1) * samplingIntervalMs).clamp(0, durationMs),
+            });
+          }
+        } else {
+          _log('    No face detected in this frame');
         }
       } catch (e) {
         _log('Error processing frame at ${timeMs}ms: $e');

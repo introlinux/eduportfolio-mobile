@@ -52,7 +52,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
       _videoController = VideoPlayerController.file(_activeFiles[0]);
       await _videoController!.initialize();
       await _videoController!.setLooping(true);
-      await _videoController!.play();
+      // Start paused – user taps to play
       if (mounted) setState(() {});
     }
   }
@@ -123,15 +123,27 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
         setState(() {
           _isProcessing = false;
         });
+        // Re-initialize video controller to show processed file
+        await _refreshVideoController();
       }
+    }
+  }
+
+  /// Refresh video controller to display the current file (original or processed)
+  Future<void> _refreshVideoController() async {
+    final fileToDisplay = _getCurrentFileDisplay(_currentIndex);
+    if (_isVideoFile(fileToDisplay)) {
+      await _videoController?.dispose();
+      _videoController = VideoPlayerController.file(fileToDisplay);
+      await _videoController!.initialize();
+      await _videoController!.setLooping(true);
+      if (mounted) setState(() {});
     }
   }
 
   File _getCurrentFileDisplay(int index) {
     final original = _activeFiles[index];
     if (_isPrivacyMode) {
-      // Return cached processed version if available, otherwise original (shouldn't happen if wait finish)
-      // Or show original while processing?
       return _processedCache[original.path] ?? original;
     } else {
       return original;
@@ -238,7 +250,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
                           _videoController = VideoPlayerController.file(fileToDisplay);
                           await _videoController!.initialize();
                           await _videoController!.setLooping(true);
-                          await _videoController!.play();
+                          // Start paused – user taps to play
                           if (mounted) setState(() {});
                         }
                       },
@@ -251,10 +263,39 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
                             child: _isVideoFile(fileToDisplay)
                                 ? (_videoController != null &&
                                         _videoController!.value.isInitialized)
-                                    ? AspectRatio(
-                                        aspectRatio:
-                                            _videoController!.value.aspectRatio,
-                                        child: VideoPlayer(_videoController!),
+                                    ? GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            if (_videoController!.value.isPlaying) {
+                                              _videoController!.pause();
+                                            } else {
+                                              _videoController!.play();
+                                            }
+                                          });
+                                        },
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            AspectRatio(
+                                              aspectRatio:
+                                                  _videoController!.value.aspectRatio,
+                                              child: VideoPlayer(_videoController!),
+                                            ),
+                                            if (!_videoController!.value.isPlaying)
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black45,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                padding: const EdgeInsets.all(16),
+                                                child: const Icon(
+                                                  Icons.play_arrow,
+                                                  size: 48,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       )
                                     : const Center(
                                         child: CircularProgressIndicator())
@@ -335,7 +376,6 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
                   // Privacy Toggle
                   SwitchListTile(
                     title: const Text('Ocultar caras'),
-                    subtitle: const Text('Cubre las caras con emojis'),
                     secondary: Icon(
                       _isPrivacyMode ? Icons.visibility_off : Icons.visibility,
                       color: _isPrivacyMode ? theme.colorScheme.primary : null,
