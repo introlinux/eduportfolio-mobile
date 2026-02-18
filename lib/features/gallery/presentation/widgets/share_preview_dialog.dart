@@ -98,7 +98,8 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
         ext.endsWith('.wav') ||
         ext.endsWith('.m4a') ||
         ext.endsWith('.aac') ||
-        ext.endsWith('.ogg');
+        ext.endsWith('.ogg') ||
+        ext.endsWith('.opus');
   }
 
   // Toggle privacy mode and trigger processing
