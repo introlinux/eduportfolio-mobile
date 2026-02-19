@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:chewie/chewie.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
@@ -139,7 +140,7 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
 
       if (mounted) setState(() {});
     } catch (e) {
-      print('Error initializing audio player: $e');
+      Logger.error('Error initializing audio player', e);
     }
   }
 
@@ -174,7 +175,7 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
 
       if (mounted) setState(() {});
     } catch (e) {
-      print('Error initializing video player: $e');
+      Logger.error('Error initializing video player', e);
     }
   }
 
@@ -408,7 +409,6 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                     const SizedBox(height: 4),
                     subjectsAsync.when(
                       data: (subjects) {
-                        // ✅ FIX: Remove duplicates and validate value exists
                         final uniqueSubjects = <int, Subject>{};
                         for (final subject in subjects) {
                           if (subject.id != null) {
@@ -461,7 +461,6 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                     const SizedBox(height: 4),
                     studentsAsync.when(
                       data: (students) {
-                        // ✅ FIX: Remove duplicates and validate value exists
                         final uniqueStudents = <int, Student>{};
                         for (final student in students) {
                           if (student.id != null) {

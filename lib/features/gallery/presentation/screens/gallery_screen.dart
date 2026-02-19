@@ -172,10 +172,15 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
                 // Get subject for this evidence
                 final subject = subjectsAsync.whenOrNull(
-                  data: (subjects) => subjects.firstWhere(
-                    (s) => s.id == evidence.subjectId,
-                    orElse: () => subjects.first,
-                  ),
+                  data: (subjects) {
+                    try {
+                      return subjects.firstWhere(
+                        (s) => s.id == evidence.subjectId,
+                      );
+                    } catch (_) {
+                      return null;
+                    }
+                  },
                 );
 
                 // Get student for this evidence

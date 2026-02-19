@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Deletes all evidences from the database and their physical files
 ///
@@ -37,7 +38,7 @@ class DeleteAllEvidencesUseCase {
         await _repository.deleteEvidence(evidence.id!);
         deletedCount++;
       } catch (e) {
-        print('Error deleting evidence ${evidence.id}: $e');
+        Logger.error('Error deleting evidence ${evidence.id}', e);
         // Continue with next evidence
       }
     }

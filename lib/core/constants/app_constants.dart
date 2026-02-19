@@ -29,7 +29,7 @@ class AppConstants {
   static const int photoResolution = 16000000; // 16MP
   static const int photoQuality = 85; // JPEG compression quality
   static const int videoResolution = 1080; // 1080p
-  static const int audioBitrate = 192000; // 192kbps
+  static const int audioBitrate = 160000; // 160kbps
 
   // Face Recognition
   static const int embeddingSize = 128;

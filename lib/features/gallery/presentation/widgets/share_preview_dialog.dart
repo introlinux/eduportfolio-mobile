@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/features/gallery/domain/services/privacy_service.dart';
 import 'package:eduportfolio/features/gallery/domain/services/media3_video_privacy_service.dart';
 import 'package:flutter/material.dart';
@@ -150,7 +151,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
         }
       }
     } catch (e) {
-      debugPrint("Error processing files: $e");
+      Logger.error('Error processing files', e);
     } finally {
       if (mounted) {
         setState(() {
@@ -236,7 +237,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
           text: 'Compartido desde EduPortfolio${_isPrivacyMode ? " (Modo Privacidad)" : ""}',
         );
       } catch (e) {
-        debugPrint('Error creating ZIP: $e');
+        Logger.error('Error creating ZIP', e);
         if (mounted) {
           setState(() {
             _isProcessing = false;
@@ -254,7 +255,7 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
           text: 'Compartido desde EduPortfolio${_isPrivacyMode ? " (Modo Privacidad)" : ""}',
         );
       } catch (e) {
-        debugPrint('Error sharing files: $e');
+        Logger.error('Error sharing files', e);
       }
     }
   }

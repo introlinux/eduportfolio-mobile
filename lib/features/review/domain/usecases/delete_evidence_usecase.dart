@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Deletes an evidence including its file and database record
 ///
@@ -35,7 +36,7 @@ class DeleteEvidenceUseCase {
         await file.delete();
       }
     } catch (e) {
-      print('Error deleting file ${evidence.filePath}: $e');
+      Logger.error('Error deleting file ${evidence.filePath}', e);
       // Continue even if file deletion fails
     }
 
@@ -47,7 +48,7 @@ class DeleteEvidenceUseCase {
           await thumbnail.delete();
         }
       } catch (e) {
-        print('Error deleting thumbnail ${evidence.thumbnailPath}: $e');
+        Logger.error('Error deleting thumbnail ${evidence.thumbnailPath}', e);
         // Continue even if thumbnail deletion fails
       }
     }

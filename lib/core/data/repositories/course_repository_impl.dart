@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/data/datasources/course_local_datasource.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/core/data/datasources/evidence_local_datasource.dart';
 import 'package:eduportfolio/core/data/models/course_model.dart';
 import 'package:eduportfolio/core/domain/entities/course.dart';
@@ -120,7 +121,7 @@ class CourseRepositoryImpl implements CourseRepository {
           }
         } catch (e) {
           // Log but continue - don't fail the whole operation if one file fails
-          print('Warning: Could not delete file ${evidence.filePath}: $e');
+          Logger.warning('Could not delete file ${evidence.filePath}', e);
         }
       }
 

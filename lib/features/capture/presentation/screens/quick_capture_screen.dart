@@ -3,14 +3,16 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show compute;
+import 'package:eduportfolio/core/constants/app_constants.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/features/capture/presentation/providers/capture_providers.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
@@ -71,10 +73,6 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   // Selección manual de estudiante
   bool _isManualSelectionActive = false;
 
-  // Debug: cropped face image for visualization
-  img.Image? _debugCroppedFace;
-  Uint8List? _debugCroppedFaceBytes;
-  
   // Orientation state
   Orientation _currentOrientation = Orientation.portrait;
 
@@ -253,13 +251,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             await _performLiveFaceRecognition(resizedImage);
           }
         } catch (e) {
-          debugPrint('Live recognition error: $e');
+          Logger.error('Live recognition error', e);
         } finally {
           _isProcessingFrame = false;
         }
       });
     } catch (e) {
-      debugPrint('Failed to start image stream: $e');
+      Logger.error('Failed to start image stream', e);
       _isStreamActive = false;
     }
   }
@@ -270,7 +268,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         _cameraController!.stopImageStream();
         _isStreamActive = false;
       } catch (e) {
-        debugPrint('Failed to stop image stream: $e');
+        Logger.error('Failed to stop image stream', e);
       }
     }
   }
@@ -362,24 +360,6 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         image,
         studentsWithFaces,
       );
-
-      // Update live recognition state
-      // Debug overlay disabled for performance
-      /*
-      if (mounted) {
-        // Convert debug image to bytes for display if available
-        if (result != null && result.debugCroppedFace != null) {
-          try {
-            final pngBytes = img.encodePng(result.debugCroppedFace!);
-            _debugCroppedFaceBytes = Uint8List.fromList(pngBytes);
-          } catch (e) {
-            debugPrint('Error encoding debug face: $e');
-          }
-        } else {
-          _debugCroppedFaceBytes = null;
-        }
-      }
-      */
 
       // Apply hysteresis + temporal memory for stable recognition
       if (mounted && !_isManualSelectionActive) {
@@ -553,7 +533,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     } catch (e) {
       // Recognition failed, but don't block capture
       // Just log and continue without recognition
-      debugPrint('Face recognition error: $e');
+      Logger.error('Face recognition error', e);
     }
   }
 
@@ -881,7 +861,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       await _audioRecorder!.start(
         const RecordConfig(
           encoder: AudioEncoder.opus,
-          bitRate: 160000,
+          bitRate: AppConstants.audioBitrate,
           sampleRate: 48000,
           numChannels: 1,
         ),
@@ -1322,48 +1302,6 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
               _cameraController!.value.isInitialized)
             _buildOverlayUI(theme),
 
-          /*
-          // DEBUG: Show what the recognizer sees
-          if (_debugCroppedFaceBytes != null && !_isCapturing)
-            Positioned(
-              left: 20,
-              bottom: 150,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  color: Colors.black,
-                ),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Image.memory(
-                        _debugCroppedFaceBytes!,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
-                    ),
-                    Container(
-                      color: Colors.red,
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(2),
-                      child: const Text(
-                        'DEBUG INPUT',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          */
-
           // REC indicator positioned bottom-right (over video button)
           if (_isRecording)
             Positioned(
@@ -1428,7 +1366,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Get camera preview size
-        final previewSize = _cameraController!.value.previewSize!;
+        final previewSize = _cameraController!.value.previewSize;
+        if (previewSize == null) return const SizedBox.shrink();
 
         // Calculate aspect ratios
         // Camera preview is typically in landscape (width > height)

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Deletes multiple evidences in a batch operation
 ///
@@ -43,7 +44,7 @@ class DeleteMultipleEvidencesUseCase {
             await file.delete();
           }
         } catch (e) {
-          print('Error deleting file ${evidence.filePath}: $e');
+          Logger.error('Error deleting file ${evidence.filePath}', e);
           // Continue anyway
         }
 
@@ -55,7 +56,7 @@ class DeleteMultipleEvidencesUseCase {
               await thumbnail.delete();
             }
           } catch (e) {
-            print('Error deleting thumbnail ${evidence.thumbnailPath}: $e');
+            Logger.error('Error deleting thumbnail ${evidence.thumbnailPath}', e);
             // Continue anyway
           }
         }
@@ -65,7 +66,7 @@ class DeleteMultipleEvidencesUseCase {
         deletedCount++;
       } catch (e) {
         // Log error but continue with remaining evidences
-        print('Error deleting evidence $evidenceId: $e');
+        Logger.error('Error deleting evidence $evidenceId', e);
       }
     }
 

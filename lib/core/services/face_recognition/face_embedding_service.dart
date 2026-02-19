@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:isolate';
+import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 
 /// Service for extracting face embeddings
 ///
@@ -24,11 +25,9 @@ class FaceEmbeddingService {
   ///
   /// Loads MobileFaceNet model from assets
   Future<void> initialize() async {
-    print('========================================');
-    print('Initializing FaceEmbeddingService...');
-    print('========================================');
+    Logger.info('Initializing FaceEmbeddingService...');
     try {
-      print('Loading MobileFaceNet model from assets...');
+      Logger.debug('Loading MobileFaceNet model from assets...');
 
       // Configure interpreter options with GPU acceleration
       final options = InterpreterOptions();
@@ -36,21 +35,18 @@ class FaceEmbeddingService {
       // Enable GPU acceleration for better performance
       try {
         if (Platform.isAndroid) {
-          print('Configuring GPU delegate for Android...');
           final gpuDelegate = GpuDelegateV2(
             options: GpuDelegateOptionsV2(),
           );
           options.addDelegate(gpuDelegate);
-          print('✓ GPU delegate configured for Android');
+          Logger.debug('GPU delegate configured for Android');
         } else if (Platform.isIOS) {
-          print('Configuring GPU delegate for iOS...');
           final gpuDelegate = GpuDelegate();
           options.addDelegate(gpuDelegate);
-          print('✓ GPU delegate configured for iOS');
+          Logger.debug('GPU delegate configured for iOS');
         }
       } catch (e) {
-        print('⚠️  GPU delegate setup failed: $e');
-        print('⚠️  Falling back to CPU execution');
+        Logger.warning('GPU delegate setup failed, falling back to CPU', e);
       }
 
       // Set number of threads for CPU fallback
@@ -61,14 +57,8 @@ class FaceEmbeddingService {
         options: options,
       );
 
-      print('✓ MobileFaceNet model loaded successfully');
-
       final inputShape = _interpreter!.getInputTensor(0).shape;
       final outputShape = _interpreter!.getOutputTensor(0).shape;
-
-      print('✓ Model shapes verified:');
-      print('  - Input: $inputShape (expected: [1, 112, 112, 3])');
-      print('  - Output: $outputShape (expected: [1, 192])');
 
       // Verify correct dimensions
       if (inputShape[1] != 112 || inputShape[2] != 112) {
@@ -78,21 +68,9 @@ class FaceEmbeddingService {
         throw Exception('Invalid model: Expected 192D output, got ${outputShape[1]}D');
       }
 
-      print('✓ MobileFaceNet ready for embedding extraction');
-      print('✓ GPU acceleration: ${Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Not available"}');
-      print('========================================');
+      Logger.info('FaceEmbeddingService ready — input: $inputShape, output: $outputShape');
     } catch (e, stackTrace) {
-      print('========================================');
-      print('✗ ERROR loading MobileFaceNet model');
-      print('✗ Error type: ${e.runtimeType}');
-      print('✗ Error details: $e');
-      print('✗ Stack trace (first 5 lines):');
-      final stackLines = stackTrace.toString().split('\n').take(5);
-      for (final line in stackLines) {
-        print('  $line');
-      }
-      print('✗ Embedding extraction will FAIL (returns null)');
-      print('========================================');
+      Logger.error('Failed to load MobileFaceNet model — embedding extraction will not work', e, stackTrace);
       // Don't rethrow - allow graceful degradation
     }
   }
@@ -103,7 +81,7 @@ class FaceEmbeddingService {
   /// Returns null if extraction fails
   Future<List<double>?> extractEmbedding(img.Image faceImage) async {
     if (_interpreter == null) {
-      print('MobileFaceNet not initialized, using placeholder');
+      Logger.warning('MobileFaceNet not initialized, using placeholder');
       return _generatePlaceholderEmbedding();
     }
 
@@ -129,13 +107,13 @@ class FaceEmbeddingService {
       // Verify that embedding is not all zeros
       final sum = embedding.fold(0.0, (a, b) => a + b.abs());
       if (sum == 0.0) {
-        print('Warning: Extracted all-zero embedding');
+        Logger.warning('Extracted all-zero embedding');
         return null;
       }
 
       return embedding;
     } catch (e) {
-      print('Error extracting embedding: $e');
+      Logger.error('Error extracting embedding', e);
       return null;
     }
   }
@@ -243,7 +221,7 @@ class FaceEmbeddingService {
   void dispose() {
     _interpreter?.close();
     _interpreter = null;
-    print('Face embedding service disposed');
+    Logger.debug('Face embedding service disposed');
   }
 }
 

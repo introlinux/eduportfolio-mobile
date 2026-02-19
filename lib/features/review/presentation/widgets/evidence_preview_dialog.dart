@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:chewie/chewie.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
@@ -83,7 +84,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
 
       if (mounted) setState(() {});
     } catch (e) {
-      print('Error initializing video preview: $e');
+      Logger.error('Error initializing video preview', e);
     }
   }
 

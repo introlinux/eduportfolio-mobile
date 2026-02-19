@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Assigns multiple evidences to the same student in a batch operation
 ///
@@ -42,7 +43,7 @@ class AssignMultipleEvidencesUseCase {
         await _repository.updateEvidence(updated);
       } catch (e) {
         // Log error but continue with remaining evidences
-        print('Error assigning evidence $evidenceId: $e');
+        Logger.error('Error assigning evidence $evidenceId', e);
       }
     }
   }

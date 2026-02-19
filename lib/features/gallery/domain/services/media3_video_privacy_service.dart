@@ -1,11 +1,12 @@
 import 'dart:io';
+import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:image/image.dart' as img;
-import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 
 /// Service to handle privacy protection for videos using Media3 Transformer.
 ///
@@ -17,11 +18,6 @@ class Media3VideoPrivacyService {
   final FaceDetectorService _faceDetectorService;
 
   Media3VideoPrivacyService(this._faceDetectorService);
-
-  void _log(String message) {
-    final now = DateTime.now();
-    print('[Media3VideoPrivacy ${now.hour}:${now.minute}:${now.second}.${now.millisecond}] $message');
-  }
 
   /// Process a video for sharing, optionally applying privacy protection (emoji overlays).
   ///
@@ -38,55 +34,54 @@ class Media3VideoPrivacyService {
 
     // Android-only for now (Media3 is Android-specific)
     if (!Platform.isAndroid) {
-      _log('Media3 only available on Android, returning original video');
+      Logger.debug('Media3 only available on Android, returning original video');
       return input;
     }
 
     final stopwatch = Stopwatch()..start();
-    _log('START processing ${input.path}');
+    Logger.debug('START processing ${input.path}');
 
     try {
       // Step 1: Extract video metadata (duration, dimensions)
-      _log('Step 1: Extracting video metadata...');
+      Logger.debug('Step 1: Extracting video metadata...');
       final videoInfo = await _getVideoInfo(input);
       if (videoInfo == null) {
-        _log('Failed to get video info, returning original');
+        Logger.debug('Failed to get video info, returning original');
         return input;
       }
-      _log('Video: ${videoInfo['width']}x${videoInfo['height']}, ${videoInfo['duration']}ms');
+      Logger.debug('Video: ${videoInfo['width']}x${videoInfo['height']}, ${videoInfo['duration']}ms');
 
       // Step 2: Extract frames and detect faces
-      _log('Step 2: Extracting frames and detecting faces...');
+      Logger.debug('Step 2: Extracting frames and detecting faces...');
       final faceDetections = await _extractFramesAndDetectFaces(
         input,
         videoInfo['duration'] as int,
         videoInfo['width'] as int,
         videoInfo['height'] as int,
       );
-      _log('Detected ${faceDetections.length} face instances across frames');
+      Logger.debug('Detected ${faceDetections.length} face instances across frames');
 
       if (faceDetections.isEmpty) {
-        _log('No faces detected, returning original video');
+        Logger.debug('No faces detected, returning original video');
         return input;
       }
 
       // Step 3: Call native Media3 processor
-      _log('Step 3: Calling Media3 processor...');
+      Logger.debug('Step 3: Calling Media3 processor...');
       final outputPath = await _channel.invokeMethod<String>('processVideo', {
         'inputPath': input.path,
         'faces': faceDetections,
       });
 
       if (outputPath == null) {
-        _log('Media3 processing failed, returning original');
+        Logger.debug('Media3 processing failed, returning original');
         return input;
       }
 
-      _log('TOTAL SUCCESS in ${stopwatch.elapsedMilliseconds}ms');
+      Logger.debug('TOTAL SUCCESS in ${stopwatch.elapsedMilliseconds}ms');
       return File(outputPath);
     } catch (e, stack) {
-      _log('CRITICAL ERROR in processVideoForSharing: $e');
-      print(stack);
+      Logger.error('Critical error in processVideoForSharing', e, stack);
       return input;
     }
   }
@@ -123,7 +118,7 @@ class Media3VideoPrivacyService {
         'duration': duration,
       };
     } catch (e) {
-      _log('Error getting video info: $e');
+      Logger.debug('Error getting video info: $e');
       return null;
     }
   }
@@ -135,10 +130,10 @@ class Media3VideoPrivacyService {
       await controller.initialize();
       final durationMs = controller.value.duration.inMilliseconds;
       await controller.dispose();
-      _log('Actual video duration: ${durationMs}ms');
+      Logger.debug('Actual video duration: ${durationMs}ms');
       return durationMs > 0 ? durationMs : 2000; // fallback 2s
     } catch (e) {
-      _log('Error getting video duration: $e, defaulting to 2000ms');
+      Logger.debug('Error getting video duration: $e, defaulting to 2000ms');
       return 2000;
     }
   }
@@ -159,7 +154,7 @@ class Media3VideoPrivacyService {
     const samplingIntervalMs = 500;
     final numSamples = (durationMs / samplingIntervalMs).ceil();
 
-    _log('Sampling $numSamples frames at ${samplingIntervalMs}ms intervals');
+    Logger.debug('Sampling $numSamples frames at ${samplingIntervalMs}ms intervals');
 
     for (int i = 0; i < numSamples; i++) {
       final timeMs = i * samplingIntervalMs;
@@ -176,7 +171,7 @@ class Media3VideoPrivacyService {
         );
 
         if (framePath == null) {
-          _log('  Frame $i @ ${timeMs}ms: thumbnail extraction failed');
+          Logger.debug('  Frame $i @ ${timeMs}ms: thumbnail extraction failed');
           continue;
         }
 
@@ -186,7 +181,7 @@ class Media3VideoPrivacyService {
         await File(framePath).delete();
 
         if (frameImage == null) {
-          _log('  Frame $i @ ${timeMs}ms: image decode failed');
+          Logger.debug('  Frame $i @ ${timeMs}ms: image decode failed');
           continue;
         }
 
@@ -201,7 +196,7 @@ class Media3VideoPrivacyService {
             ? img.copyRotate(frameImage, angle: 90)
             : frameImage;
 
-        _log('  Frame $i @ ${timeMs}ms: ${frameImage.width}x${frameImage.height}'
+        Logger.debug('  Frame $i @ ${timeMs}ms: ${frameImage.width}x${frameImage.height}'
             '${needsRotation ? " (rotated for detection)" : ""}');
 
         // Detect ALL faces in this frame
@@ -233,7 +228,7 @@ class Media3VideoPrivacyService {
             final normW = box.width / frameWidth;
             final normH = box.height / frameHeight;
 
-            _log('    FACE FOUND: pixel=(${box.x},${box.y},${box.width}x${box.height}) '
+            Logger.debug('    FACE FOUND: pixel=(${box.x},${box.y},${box.width}x${box.height}) '
                 'norm=($normX,$normY,${normW}x$normH) score=${detection.score.toStringAsFixed(2)}');
 
             faceDetections.add({
@@ -246,10 +241,10 @@ class Media3VideoPrivacyService {
             });
           }
         } else {
-          _log('    No face detected in this frame');
+          Logger.debug('    No face detected in this frame');
         }
       } catch (e) {
-        _log('Error processing frame at ${timeMs}ms: $e');
+        Logger.debug('Error processing frame at ${timeMs}ms: $e');
       }
     }
 
@@ -273,7 +268,7 @@ class Media3VideoPrivacyService {
         }
       }
     } catch (e) {
-      _log('Cleanup error: $e');
+      Logger.debug('Cleanup error: $e');
     }
   }
 }

@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:isolate';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:flutter/foundation.dart';
 
 /// Service for detecting faces in images
 ///
@@ -62,16 +62,14 @@ class FaceDetectorService {
       layerIndex++;
     }
 
-    print('Generated ${_anchors!.length} anchors for BlazeFace Short-Range');
+    Logger.debug('Generated ${_anchors!.length} anchors for BlazeFace Short-Range');
   }
 
   /// Initialize the face detection model
   Future<void> initialize() async {
-    print('========================================');
-    print('Initializing FaceDetectorService...');
-    print('========================================');
+    Logger.info('Initializing FaceDetectorService...');
     try {
-      print('Loading BlazeFace Full-Range model from assets...');
+      Logger.debug('Loading BlazeFace Short-Range model from assets...');
 
       // Configure interpreter options with GPU acceleration
       final options = InterpreterOptions();
@@ -79,21 +77,18 @@ class FaceDetectorService {
       // Enable GPU acceleration for better performance
       try {
         if (Platform.isAndroid) {
-          print('Configuring GPU delegate for Android...');
           final gpuDelegate = GpuDelegateV2(
             options: GpuDelegateOptionsV2(),
           );
           options.addDelegate(gpuDelegate);
-          print('✓ GPU delegate configured for Android');
+          Logger.debug('GPU delegate configured for Android');
         } else if (Platform.isIOS) {
-          print('Configuring GPU delegate for iOS...');
           final gpuDelegate = GpuDelegate();
           options.addDelegate(gpuDelegate);
-          print('✓ GPU delegate configured for iOS');
+          Logger.debug('GPU delegate configured for iOS');
         }
       } catch (e) {
-        print('⚠️  GPU delegate setup failed: $e');
-        print('⚠️  Falling back to CPU execution');
+        Logger.warning('GPU delegate setup failed, falling back to CPU', e);
       }
 
       // Set number of threads for CPU fallback
@@ -104,8 +99,6 @@ class FaceDetectorService {
         options: options,
       );
 
-      print('✓ BlazeFace Short-Range model loaded successfully');
-
       // Generate anchors for box decoding
       _generateAnchors();
 
@@ -113,25 +106,9 @@ class FaceDetectorService {
       final outputShape0 = _interpreter!.getOutputTensor(0).shape;
       final outputShape1 = _interpreter!.getOutputTensor(1).shape;
 
-      print('✓ Model shapes verified:');
-      print('  - Input: $inputShape (expected: [1, 128, 128, 3])');
-      print('  - Output 0 (boxes): $outputShape0 (expected: [1, 896, 16])');
-      print('  - Output 1 (scores): $outputShape1 (expected: [1, 896])');
-      print('✓ BlazeFace Full-Range ready (detects faces up to 5 meters)');
-      print('✓ GPU acceleration: ${Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Not available"}');
-      print('========================================');
+      Logger.info('FaceDetectorService ready — input: $inputShape, boxes: $outputShape0, scores: $outputShape1');
     } catch (e, stackTrace) {
-      print('========================================');
-      print('✗ ERROR loading BlazeFace model');
-      print('✗ Error type: ${e.runtimeType}');
-      print('✗ Error details: $e');
-      print('✗ Stack trace (first 5 lines):');
-      final stackLines = stackTrace.toString().split('\n').take(5);
-      for (final line in stackLines) {
-        print('  $line');
-      }
-      print('✗ Face detection will FAIL (placeholder returns null)');
-      print('========================================');
+      Logger.error('Failed to load BlazeFace model — face detection will not work', e, stackTrace);
       // Don't rethrow - allow graceful degradation
     }
   }
@@ -140,7 +117,7 @@ class FaceDetectorService {
   void dispose() {
     _interpreter?.close();
     _interpreter = null;
-    print('Face detector disposed');
+    Logger.debug('Face detector disposed');
   }
 
   /// Detect face and return both processed image and detection (OPTIMIZED for training)
@@ -151,7 +128,6 @@ class FaceDetectorService {
     File imageFile,
   ) async {
     try {
-      debugPrint('    - Reading and decoding image...');
       final readStart = DateTime.now();
 
       // Run heavy image decoding in Isolate
@@ -174,14 +150,10 @@ class FaceDetectorService {
       }
 
       final readDuration = DateTime.now().difference(readStart);
-      debugPrint('    - Image decoded in ${readDuration.inMilliseconds}ms');
+      Logger.debug('Image decoded in ${readDuration.inMilliseconds}ms');
 
-      debugPrint('    - Detecting face...');
-      final detectionStart = DateTime.now();
       final detections = await _detectFacesWithBlazeFace(image);
       final detection = detections.isNotEmpty ? detections.first : null;
-      final detectionDuration = DateTime.now().difference(detectionStart);
-      debugPrint('    - Face detected in ${detectionDuration.inMilliseconds}ms');
 
       if (detection == null) {
         return null;
@@ -190,7 +162,7 @@ class FaceDetectorService {
       // Return both image and detection
       return (processedImage: image, detection: detection);
     } catch (e) {
-      debugPrint('❌ Error detecting face from file: $e');
+      Logger.error('Error detecting face from file', e);
       return null;
     }
   }
@@ -220,7 +192,7 @@ class FaceDetectorService {
       final detections = await _detectFacesWithBlazeFace(image, generateDebugImage: false);
       return detections.isNotEmpty ? detections.first : null;
     } catch (e) {
-      print('Error detecting face: $e');
+      Logger.error('Error detecting face', e);
       return null;
     }
   }
@@ -241,7 +213,7 @@ class FaceDetectorService {
     try {
       return await _detectFacesWithBlazeFace(image, generateDebugImage: generateDebugImage);
     } catch (e) {
-      print('Error detecting face from image: $e');
+      Logger.error('Error detecting face from image', e);
       return []; // Return empty list on error
     }
   }
@@ -280,9 +252,6 @@ class FaceDetectorService {
         return null;
       }
 
-      // DEBUG: Log image dimensions to verify orientation
-      print('  - DEBUG Image dimensions after bakeOrientation: ${image.width}x${image.height}');
-
       // Use BlazeFace for real face detection
       final detections = await _detectFacesWithBlazeFace(image);
       final detection = detections.isNotEmpty ? detections.first : null;
@@ -298,7 +267,7 @@ class FaceDetectorService {
 
       return croppedFace;
     } catch (e) {
-      print('Error detecting face: $e');
+      Logger.error('Error in detectAndCropFace', e);
       return null;
     }
   }
@@ -312,22 +281,12 @@ class FaceDetectorService {
     FaceDetectionResult detection,
   ) async {
     try {
-      debugPrint('🚀 OPTIMIZED: Cropping with pre-computed detection (SKIP detection + I/O)');
-      final startTime = DateTime.now();
-
-      debugPrint('  - Image already in memory: ${image.width}x${image.height}');
-
       // Perform cropping in Isolate (image already processed, just crop!)
-      final croppedFace = await Isolate.run(() {
+      return await Isolate.run(() {
         return _alignAndCropFace(image, detection);
       });
-
-      final duration = DateTime.now().difference(startTime);
-      debugPrint('✅ OPTIMIZED crop completed in ${duration.inMilliseconds}ms');
-
-      return croppedFace;
     } catch (e) {
-      debugPrint('❌ Error cropping face with detection: $e');
+      Logger.error('Error cropping face with detection', e);
       return null;
     }
   }
@@ -366,7 +325,7 @@ class FaceDetectorService {
 
       return croppedFace;
     } catch (e) {
-      print('Error detecting face from bytes: $e');
+      Logger.error('Error detecting face from bytes', e);
       return null;
     }
   }
@@ -381,26 +340,19 @@ class FaceDetectorService {
       final rightEye = detection.rightEye!;
       final leftEye = detection.leftEye!;
 
-      // DEBUG: Log landmark positions
-      print('  - DEBUG Landmarks: rightEye=(${rightEye.x.toStringAsFixed(1)}, ${rightEye.y.toStringAsFixed(1)}), leftEye=(${leftEye.x.toStringAsFixed(1)}, ${leftEye.y.toStringAsFixed(1)})');
-      print('  - DEBUG FaceBox: x=${faceRect.x}, y=${faceRect.y}, w=${faceRect.width}, h=${faceRect.height}');
-
       // Calculate angle between eyes
       // For a normal upright face: leftEye.x < rightEye.x (left eye is on the left side of image)
       // Use (leftEye - rightEye) to get vector pointing from right to left
       final dy = leftEye.y - rightEye.y;
       final dx = leftEye.x - rightEye.x;
-      
+
       // Calculate angle in degrees
       final angleRad = atan2(dy, dx);
       var angleDeg = angleRad * 180 / pi;
 
-      print('  - DEBUG: dy=$dy, dx=$dx, angleDeg=${angleDeg.toStringAsFixed(1)}');
-
       // Only apply rotation if angle is reasonable (between -30 and +30 degrees)
       // Larger values indicate incorrect landmark detection
       if (angleDeg.abs() > 5.0 && angleDeg.abs() <= 30.0) {
-        print('  - Face rotation needed: ${angleDeg.toStringAsFixed(1)}°');
         
         // Strategy: Crop a larger area, rotate it, then crop the core face.
         // This avoids rotating the full multi-megapixel image.
@@ -486,7 +438,7 @@ class FaceDetectorService {
   }) async {
     // Fallback if model not initialized
     if (_interpreter == null) {
-      print('⚠️  BlazeFace not initialized - model failed to load');
+      Logger.warning('BlazeFace not initialized — model failed to load');
       return [];
     }
 
@@ -633,7 +585,7 @@ class FaceDetectorService {
       return _nonMaxSuppression(detections, 0.3);
 
     } catch (e) {
-      print('Error in BlazeFace detection: $e');
+      Logger.error('Error in BlazeFace detection', e);
       return [];
     }
   }

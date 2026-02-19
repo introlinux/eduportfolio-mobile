@@ -4,6 +4,8 @@ import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
+import 'package:eduportfolio/core/utils/file_naming_utils.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -83,12 +85,12 @@ class SaveEvidenceUseCase {
       await File(permanentPath).writeAsBytes(correctedBytes);
 
       fileSize = correctedBytes.length;
-      print('✓ Image orientation corrected and saved: $permanentPath');
+      Logger.info('✓ Image orientation corrected and saved: $permanentPath');
     } else {
       // Fallback: if image can't be decoded, just copy as-is
       await tempFile.copy(permanentPath);
       fileSize = await tempFile.length();
-      print('⚠️  Could not decode image, saved without orientation fix');
+      Logger.warning('Could not decode image, saved without orientation fix');
     }
 
     final now = DateTime.now();
@@ -122,70 +124,12 @@ class SaveEvidenceUseCase {
   /// - [studentName]: Full name of the student (e.g., "Juan Garcia"), null if unassigned
   /// - [extension]: File extension including the dot (e.g., ".jpg")
   String _generateFileName(String subjectName, String? studentName, String extension) {
-    // Generate subject ID: first 3 letters in uppercase
-    final subjectId = _generateSubjectId(subjectName);
-
-    // Generate student ID: normalize name by replacing spaces with hyphens
-    // If no student assigned, use "SIN-ASIGNAR"
+    final subjectId = FileNamingUtils.generateSubjectId(subjectName);
     final studentId = studentName != null
-        ? _normalizeStudentName(studentName)
+        ? FileNamingUtils.normalizeStudentName(studentName)
         : 'SIN-ASIGNAR';
-
-    // Generate timestamp in format: YYYYMMDD_HHMMSS
     final now = DateTime.now();
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(now);
-
-    // Combine all parts: [ID-ASIGNATURA]_[ID-ALUMNO]_[TIMESTAMP].jpg
     return '${subjectId}_${studentId}_$timestamp$extension';
-  }
-
-  /// Extract first 3 letters of subject name in uppercase
-  ///
-  /// Examples:
-  /// - "Matemáticas" → "MAT"
-  /// - "Lengua" → "LEN"
-  /// - "Inglés" → "ING"
-  /// - "Artística" → "ART"
-  String _generateSubjectId(String subjectName) {
-    // Remove accents and special characters
-    final normalized = _removeAccents(subjectName);
-
-    // Take first 3 characters and convert to uppercase
-    final id = normalized.length >= 3
-        ? normalized.substring(0, 3).toUpperCase()
-        : normalized.toUpperCase().padRight(3, 'X');
-
-    return id;
-  }
-
-  /// Remove accents from text
-  ///
-  /// Examples:
-  /// - "Matemáticas" → "Matematicas"
-  /// - "Inglés" → "Ingles"
-  /// - "Artística" → "Artistica"
-  String _removeAccents(String text) {
-    const withAccents = 'áéíóúÁÉÍÓÚñÑüÜ';
-    const withoutAccents = 'aeiouAEIOUnNuU';
-
-    String result = text;
-    for (int i = 0; i < withAccents.length; i++) {
-      result = result.replaceAll(withAccents[i], withoutAccents[i]);
-    }
-
-    return result;
-  }
-
-  /// Normalize student name by replacing spaces with hyphens
-  ///
-  /// Examples:
-  /// - "Juan Garcia" → "Juan-Garcia"
-  /// - "María López Pérez" → "Maria-Lopez-Perez"
-  String _normalizeStudentName(String name) {
-    // Remove accents
-    final normalized = _removeAccents(name);
-
-    // Replace spaces with hyphens
-    return normalized.replaceAll(' ', '-');
   }
 }

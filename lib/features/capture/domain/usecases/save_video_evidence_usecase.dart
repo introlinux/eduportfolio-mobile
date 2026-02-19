@@ -4,6 +4,8 @@ import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
+import 'package:eduportfolio/core/utils/file_naming_utils.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -77,7 +79,7 @@ class SaveVideoEvidenceUseCase {
     await tempFile.copy(permanentPath);
     final fileSize = await tempFile.length();
 
-    print('✓ Video saved: $permanentPath ($fileSize bytes)');
+    Logger.info('✓ Video saved: $permanentPath ($fileSize bytes)');
 
     // Generate thumbnail from first frame
     String? thumbnailPath;
@@ -90,9 +92,9 @@ class SaveVideoEvidenceUseCase {
         maxWidth: 512,
         quality: 75,
       );
-      print('✓ Video thumbnail generated: $thumbnailPath');
+      Logger.info('✓ Video thumbnail generated: $thumbnailPath');
     } catch (e) {
-      print('⚠️  Could not generate video thumbnail: $e');
+      Logger.warning('Could not generate video thumbnail', e);
       // Continue without thumbnail — gallery will show a placeholder
     }
 
@@ -123,41 +125,12 @@ class SaveVideoEvidenceUseCase {
   /// Generate filename with format: VID_[ID-ASIGNATURA]_[ID-ALUMNO]_[TIMESTAMP].mp4
   String _generateFileName(
       String subjectName, String? studentName, String extension) {
-    final subjectId = _generateSubjectId(subjectName);
-
+    final subjectId = FileNamingUtils.generateSubjectId(subjectName);
     final studentId = studentName != null
-        ? _normalizeStudentName(studentName)
+        ? FileNamingUtils.normalizeStudentName(studentName)
         : 'SIN-ASIGNAR';
-
     final now = DateTime.now();
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(now);
-
     return 'VID_${subjectId}_${studentId}_$timestamp$extension';
-  }
-
-  /// Extract first 3 letters of subject name in uppercase
-  String _generateSubjectId(String subjectName) {
-    final normalized = _removeAccents(subjectName);
-    final id = normalized.length >= 3
-        ? normalized.substring(0, 3).toUpperCase()
-        : normalized.toUpperCase().padRight(3, 'X');
-    return id;
-  }
-
-  /// Remove accents from text
-  String _removeAccents(String text) {
-    const withAccents = 'áéíóúÁÉÍÓÚñÑüÜ';
-    const withoutAccents = 'aeiouAEIOUnNuU';
-    String result = text;
-    for (int i = 0; i < withAccents.length; i++) {
-      result = result.replaceAll(withAccents[i], withoutAccents[i]);
-    }
-    return result;
-  }
-
-  /// Normalize student name by replacing spaces with hyphens
-  String _normalizeStudentName(String name) {
-    final normalized = _removeAccents(name);
-    return normalized.replaceAll(' ', '-');
   }
 }

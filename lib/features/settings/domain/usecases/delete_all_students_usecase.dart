@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Deletes all students from the database and their face embeddings
 ///
@@ -21,7 +22,7 @@ class DeleteAllStudentsUseCase {
         await _repository.deleteStudent(student.id!);
         deletedCount++;
       } catch (e) {
-        print('Error deleting student ${student.id}: $e');
+        Logger.error('Error deleting student ${student.id}', e);
         // Continue with next student
       }
     }

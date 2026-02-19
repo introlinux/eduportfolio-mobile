@@ -4,6 +4,8 @@ import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/subject_repository.dart';
 import 'package:eduportfolio/core/domain/repositories/student_repository.dart';
+import 'package:eduportfolio/core/utils/file_naming_utils.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -79,7 +81,7 @@ class SaveAudioEvidenceUseCase {
     await tempFile.copy(permanentPath);
     final fileSize = await tempFile.length();
 
-    print('\u2713 Audio saved: $permanentPath ($fileSize bytes)');
+    Logger.info('✓ Audio saved: $permanentPath ($fileSize bytes)');
 
     // Process cover image: compress to JPEG 75%, max 512px
     String? thumbnailPath;
@@ -98,10 +100,10 @@ class SaveAudioEvidenceUseCase {
 
       if (result != null) {
         thumbnailPath = result.path;
-        print('\u2713 Audio cover image saved: $thumbnailPath');
+        Logger.info('✓ Audio cover image saved: $thumbnailPath');
       }
     } catch (e) {
-      print('\u26a0\ufe0f  Could not process cover image: $e');
+      Logger.warning('Could not process cover image', e);
       // Continue without cover — gallery will show a placeholder
     }
 
@@ -132,41 +134,12 @@ class SaveAudioEvidenceUseCase {
   /// Generate filename with format: AUD_[ID-ASIGNATURA]_[ID-ALUMNO]_[TIMESTAMP].opus
   String _generateFileName(
       String subjectName, String? studentName, String extension) {
-    final subjectId = _generateSubjectId(subjectName);
-
+    final subjectId = FileNamingUtils.generateSubjectId(subjectName);
     final studentId = studentName != null
-        ? _normalizeStudentName(studentName)
+        ? FileNamingUtils.normalizeStudentName(studentName)
         : 'SIN-ASIGNAR';
-
     final now = DateTime.now();
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(now);
-
     return 'AUD_${subjectId}_${studentId}_$timestamp$extension';
-  }
-
-  /// Extract first 3 letters of subject name in uppercase
-  String _generateSubjectId(String subjectName) {
-    final normalized = _removeAccents(subjectName);
-    final id = normalized.length >= 3
-        ? normalized.substring(0, 3).toUpperCase()
-        : normalized.toUpperCase().padRight(3, 'X');
-    return id;
-  }
-
-  /// Remove accents from text
-  String _removeAccents(String text) {
-    const withAccents = 'áéíóúÁÉÍÓÚñÑüÜ';
-    const withoutAccents = 'aeiouAEIOUnNuU';
-    String result = text;
-    for (int i = 0; i < withAccents.length; i++) {
-      result = result.replaceAll(withAccents[i], withoutAccents[i]);
-    }
-    return result;
-  }
-
-  /// Normalize student name by replacing spaces with hyphens
-  String _normalizeStudentName(String name) {
-    final normalized = _removeAccents(name);
-    return normalized.replaceAll(' ', '-');
   }
 }
