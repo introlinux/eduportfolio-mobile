@@ -194,21 +194,32 @@ class SyncRepository {
               ))
           .toList(),
       evidences: evidences
-          .map((e) => EvidenceSync(
-                id: e.id,
-                studentId: e.studentId,
-                courseId: e.courseId,
-                subjectId: e.subjectId,
-                type: e.type.toDbString(),
-                filePath: 'evidences/${e.filePath.split('/').last}', // Normalize to relative path
-                thumbnailPath: e.thumbnailPath,
-                fileSize: e.fileSize,
-                duration: e.duration,
-                captureDate: e.captureDate.toIso8601String(),
-                isReviewed: e.isReviewed,
-                notes: e.notes,
-                createdAt: e.createdAt.toIso8601String(),
-              ))
+          .map((e) {
+            // Normalize thumbnailPath: send only the filename (not the absolute local path)
+            // Desktop will prepend 'evidences/' when storing it
+            String? normalizedThumbnailPath;
+            if (e.thumbnailPath != null) {
+              final thumbFilename = e.thumbnailPath!.split('/').last;
+              if (thumbFilename.isNotEmpty) {
+                normalizedThumbnailPath = thumbFilename;
+              }
+            }
+            return EvidenceSync(
+              id: e.id,
+              studentId: e.studentId,
+              courseId: e.courseId,
+              subjectId: e.subjectId,
+              type: e.type.toDbString(),
+              filePath: 'evidences/${e.filePath.split('/').last}', // Normalize to relative path
+              thumbnailPath: normalizedThumbnailPath,
+              fileSize: e.fileSize,
+              duration: e.duration,
+              captureDate: e.captureDate.toIso8601String(),
+              isReviewed: e.isReviewed,
+              notes: e.notes,
+              createdAt: e.createdAt.toIso8601String(),
+            );
+          })
           .toList(),
     );
   }
@@ -592,6 +603,15 @@ class SyncRepository {
         // Remove .enc extension from filename since server sends decrypted files
         final cleanFilename = remoteEvidence.filename.replaceAll(RegExp(r'\.enc$', caseSensitive: false), '');
 
+        // Resolve thumbnail path: server sends just the filename, we point to local thumbnails dir
+        String? localThumbnailPath;
+        if (remoteEvidence.thumbnailPath != null) {
+          final thumbFilename = remoteEvidence.thumbnailPath!.split('/').last;
+          if (thumbFilename.isNotEmpty) {
+            localThumbnailPath = '${appDir.path}/evidences/thumbnails/$thumbFilename';
+          }
+        }
+
         final evidence = Evidence(
           id: remoteEvidence.id, // ✅ Use server ID to maintain consistency
           studentId: remoteEvidence.studentId,
@@ -599,7 +619,7 @@ class SyncRepository {
           subjectId: remoteEvidence.subjectId,
           type: EvidenceType.fromString(remoteEvidence.type),
           filePath: '${evidencesDir.path}/$cleanFilename', // Use local absolute path without .enc
-          thumbnailPath: remoteEvidence.thumbnailPath,
+          thumbnailPath: localThumbnailPath,
           fileSize: remoteEvidence.fileSize,
           duration: remoteEvidence.duration,
           captureDate: DateTime.parse(remoteEvidence.captureDate),
@@ -626,9 +646,13 @@ class SyncRepository {
     int filesDownloaded = 0;
     final appDir = await getApplicationDocumentsDirectory();
     final evidencesDir = Directory('${appDir.path}/evidences');
+    final thumbnailsDir = Directory('${appDir.path}/evidences/thumbnails');
 
     if (!await evidencesDir.exists()) {
       await evidencesDir.create(recursive: true);
+    }
+    if (!await thumbnailsDir.exists()) {
+      await thumbnailsDir.create(recursive: true);
     }
 
     Logger.info('Downloading ${remote.length} remote files...');
@@ -656,6 +680,27 @@ class SyncRepository {
       } else {
         Logger.debug('File already exists locally: $cleanFilename');
       }
+
+      // Download thumbnail/cover for audio evidences if available and missing locally
+      if (remoteEvidence.thumbnailPath != null) {
+        final thumbFilename = remoteEvidence.thumbnailPath!.split('/').last;
+        if (thumbFilename.isNotEmpty) {
+          final localThumb = File('${thumbnailsDir.path}/$thumbFilename');
+          if (!await localThumb.exists()) {
+            try {
+              await _syncService.downloadFile(
+                baseUrl,
+                thumbFilename, // filename on server (in evidences/ flat)
+                localThumb.path,
+              );
+              filesDownloaded++;
+              Logger.info('Downloaded thumbnail: $thumbFilename');
+            } catch (e) {
+              Logger.warning('Could not download thumbnail (non-critical): $thumbFilename');
+            }
+          }
+        }
+      }
     }
 
     Logger.info('Downloaded $filesDownloaded files from server');
@@ -671,6 +716,7 @@ class SyncRepository {
     int filesUploaded = 0;
     final appDir = await getApplicationDocumentsDirectory();
     final evidencesDir = Directory('${appDir.path}/evidences');
+    final thumbnailsDir = Directory('${appDir.path}/evidences/thumbnails');
 
     Logger.info('Uploading ${local.length} local files...');
 
@@ -704,6 +750,36 @@ class SyncRepository {
         }
       } else {
         Logger.debug('File already exists on server (skipping): $localFilename');
+      }
+
+      // Upload thumbnail/cover image for audio evidences if it exists
+      if (localEvidence.thumbnailPath != null) {
+        final thumbFilename = localEvidence.thumbnailPath!.split('/').last;
+        if (thumbFilename.isNotEmpty) {
+          // Check if thumbnail already exists on remote
+          final remoteHasThumb = remote.any((e) {
+            final remoteThumb = e.thumbnailPath?.split('/').last ?? '';
+            return remoteThumb == thumbFilename;
+          });
+
+          if (!remoteHasThumb) {
+            // Look for thumbnail in thumbnails subdirectory
+            final thumbFile = File('${thumbnailsDir.path}/$thumbFilename');
+            if (await thumbFile.exists()) {
+              try {
+                await _syncService.uploadFile(
+                  baseUrl,
+                  thumbFile,
+                  thumbFilename,
+                );
+                filesUploaded++;
+                Logger.info('Uploaded thumbnail: $thumbFilename');
+              } catch (e) {
+                Logger.error('Failed to upload thumbnail: $thumbFilename', e);
+              }
+            }
+          }
+        }
       }
     }
 
