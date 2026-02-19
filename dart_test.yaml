@@ -1,0 +1,5 @@
+# Configuración global de flutter test
+# Los tests de datasource usan sqflite_ffi con una variable global (databaseFactory)
+# que causa interferencias al ejecutarse en paralelo. Limitamos la concurrencia a 1
+# para garantizar ejecución en serie y evitar fallos intermitentes.
+concurrency: 1
