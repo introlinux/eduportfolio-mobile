@@ -29,13 +29,15 @@ El proyecto abarca dos componentes que trabajan conjuntamente:
 **Aplicación móvil** (este proyecto): recolección de evidencias en clase mientras los alumnos trabajan.
 1. Recoger imágenes, vídeos y audios del trabajo del alumnado in-situ.
 2. Clasificar las capturas creando un portfolio digital por asignatura.
-3. Mostrar los trabajos en galería para evaluarlos o mostrarlos a las familias.
-4. Sincronizar la información con el Kiosko de Evidencias (app de escritorio).
+3. Mostrar los trabajos en una galería para evaluarlos o mostrarlos a las familias.
+4. Sincronizar la información que hubiera en el Kiosko de Evidencias para fusionarla con la recogida por el docente.
 
-**[Kiosko de Evidencias](https://github.com/introlinux/eduportfolio)** (versión Desktop): estación de trabajo instalada en el ordenador de clase.
-1. Los alumnos son reconocidos automáticamente mediante reconocimiento facial.
-2. Muestran sus trabajos a la cámara para su captura y digitalización.
-3. El sistema clasifica el trabajo en el portfolio digital por asignatura.
+**[Kiosko de Evidencias](https://github.com/introlinux/eduportfolio)** (versión Desktop): estación de trabajo digital instalada en el ordenador de clase que permite a los alumnos:
+1. Ser reconocidos automáticamente mediante reconocimiento facial.
+2. Mostrar sus trabajos a la cámara para su captura y digitalización.
+3. Ver cómo el sistema clasifica automáticamente el trabajo en su portfolio digital por asignatura.
+
+El Kiosko de Evidencias está pensado para que su uso forme parte del día a día de los alumnos y se puede [testear aquí](https://github.com/introlinux/eduportfolio).
 
 Todo opera bajo un paradigma **"Local-First"** y **"Privacidad por Diseño"**: todos los datos (imágenes, vídeos, perfiles biométricos) se procesan y almacenan exclusivamente en el dispositivo, **sin ninguna conexión a servidores externos**. En la versión Kiosko de escritorio, los archivos se encriptan al vuelo antes de ser guardados en disco y la aplicación se encarga de desencriptarlos automáticamente cuando es neceario, por ejemplo, para mostrarlos en la galería, para compartir alguna evidencia concreta con las familias o sincronizar las evidencias con la versión mobile. En la versión mobile no es necesario porque de forma predeterminada tanto Android como IPhone encriptan sus particiones además de imposibilitar que una aplicación pueda ver el directorio de otra. 
 
