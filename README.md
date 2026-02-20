@@ -3,7 +3,7 @@
 **Sistema de captura y clasificación autónoma de trabajos escolares para Educación Infantil y Primaria**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-Android-blue.svg)](https://flutter.dev)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://flutter.dev)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-54C5F8?logo=flutter)](https://flutter.dev)
 [![Download APK](https://img.shields.io/badge/Download_APK-v1.0.0-success?style=flat&logo=android)](https://drive.google.com/file/d/14D3hyGKlAstHEnJvzRgMTqsTAKDBV8HF/view?usp=sharing)
 
@@ -162,7 +162,9 @@ eduportfolio-mobile/
 
 ### Descarga de Binarios Ejecutables (Opción Recomendada)
 
-**📥 [Descargar EduPortfolio Mobile (APK)](https://drive.google.com/drive/folders/1BJdJ9gIO39UN28UjLXMRDaEhdnPvmFJZ?usp=drive_link)**
+**📥 [Descargar EduPortfolio Mobile — Binarios precompilados](https://drive.google.com/drive/folders/1BJdJ9gIO39UN28UjLXMRDaEhdnPvmFJZ?usp=drive_link)**
+
+Disponible para: **Android** (APK), **Windows**, **macOS** y **Linux**.
 
 ### Requisitos Previos (Para Compilar desde Código Fuente)
 
@@ -246,12 +248,14 @@ genhtml coverage/lcov.info -o coverage/html
 
 **Nomenclatura de archivos:**
 ```
-[ID-ASIGNATURA]_[Nombre-Alumno]_[YYYYMMDD]_[HHMMSS].[ext]
+Foto:   [ID-ASIGNATURA]_[Nombre-Alumno]_[YYYYMMDD]_[HHMMSS].jpg
+Vídeo:  VID_[ID-ASIGNATURA]_[Nombre-Alumno]_[YYYYMMDD]_[HHMMSS].mp4
+Audio:  AUD_[ID-ASIGNATURA]_[Nombre-Alumno]_[YYYYMMDD]_[HHMMSS].opus
 
 Ejemplos:
-  MAT_Juan-Garcia_20250129_143025.jpg     (foto)
-  LEN_Maria-Lopez_20250129_144200.mp4     (vídeo)
-  CIE_SIN-ASIGNAR_20250129_150000.opus     (audio sin clasificar)
+  MAT_Juan-Garcia_20250129_143025.jpg          (foto)
+  VID_LEN_Maria-Lopez_20250129_144200.mp4      (vídeo)
+  AUD_CIE_SIN-ASIGNAR_20250129_150000.opus     (audio sin clasificar)
 ```
 
 ### 3. Vista de Galería
@@ -348,20 +352,21 @@ CREATE TABLE evidences (
 
 ### Estructura de Carpetas en Sistema de Archivos
 
+Los archivos se almacenan en el directorio de documentos de la app (`getApplicationDocumentsDirectory()`), con estructura plana organizada por nombre de archivo:
+
 ```
-/storage/emulated/0/Android/data/com.eduportfolio/files/
-├── Curso2024-25/
-│   ├── Alumno_Juan_Perez/
-│   │   ├── Matematicas/
-│   │   │   ├── MAT_Juan-Perez_20250129_143025.jpg
-│   │   │   ├── THUMB_MAT_Juan-Perez_20250129_143025.jpg
-│   │   │   └── MAT_Juan-Perez_20250129_150000.mp4
-│   │   ├── Lengua/
-│   │   └── Ciencias/
-│   └── Alumno_Maria_Garcia/
-├── Temporal/             -- Evidencias sin clasificar
-└── FaceTraining/         -- Fotos de referencia para entrenamiento facial
+<AppDocDir>/
+├── evidences/                              -- Todas las evidencias
+│   ├── MAT_Juan-Garcia_20250129_143025.jpg
+│   ├── VID_LEN_Maria-Lopez_20250129_144200.mp4
+│   ├── AUD_CIE_Juan-Garcia_20250129_150000.opus
+│   └── thumbnails/                         -- Miniaturas y portadas
+│       ├── THUMB_VID_LEN_Maria-Lopez_20250129_144200.jpg
+│       └── COVER_AUD_CIE_Juan-Garcia_20250129_150000.jpg
+└── eduportfolio.db                         -- Base de datos SQLite
 ```
+
+> La clasificación por alumno, asignatura y curso se gestiona en la base de datos, no en la jerarquía de carpetas. Las evidencias sin alumno asignado se marcan como no revisadas (`is_reviewed = 0`) y aparecen en la Vista de Revisión Manual.
 
 ---
 
@@ -371,7 +376,7 @@ CREATE TABLE evidences (
 - **Detección**: BlazeFace (TensorFlow Lite) — localiza el rostro en el frame
 - **Embedding**: MobileFaceNet (TensorFlow Lite) — extrae vector de 192 dimensiones
 - **Ejecución**: On-device, sin conexión a internet
-- **Umbral de confianza**: distancia euclidiana ≥ 0.7 para identificar (< 0.7 = sin clasificar)
+- **Umbral de confianza**: similitud coseno ≥ 0.70 para identificar (< 0.70 = sin clasificar)
 
 ### Proceso de Entrenamiento
 1. Captura de 5 fotos de referencia por alumno en ajustes
@@ -411,22 +416,42 @@ CREATE TABLE evidences (
 - [x] Arquitectura base (Clean Architecture + Riverpod)
 - [x] Modelo de datos y repositorios (SQLite)
 - [x] Vista principal (Home) con indicadores
-- [x] Captura rápida: fotos, **vídeos** y **audios**
-- [x] Indicador REC + temporizador durante grabación de vídeo
+- [x] Captura rápida: fotos
 - [x] Reconocimiento facial funcional (BlazeFace + MobileFaceNet)
-- [x] Galería multimedia con reproducción integrada de vídeo y audio
-- [x] Privacidad: pixelado de rostros (fotos y vídeos) para compartir
+- [x] Vista de galería de fotos
 - [x] Gestión de estudiantes, cursos y asignaturas
 - [x] Vista de revisión manual para evidencias sin clasificar
-- [x] Sincronización WiFi con la app de escritorio
-- [x] Tests unitarios y de widgets
+	- [x] Selección múltiple con checkboxes 
+	- [x] Asignación por lotes
+	- [x] Eliminación por lotes con confirmación
+	- [x] Preview a pantalla completa (Zoom) con navegación
+- [x] Tests unitarios (Core, UseCases, Services) y de widgets e integración
 - [x] Documentación técnica
+- [x] Vista configuración
+- [x] Integración de modelo TFLite real  
 
-### Fase 2 (Futuro) 🚧
+### Fase 2 ✅ COMPLETADA
+- [x] Aplicación de escritorio (Electron)
+- [x] Sincronización WiFi con la app de escritorio
+  - [x] Pantalla de configuración de sincronización (IP, contraseña, autenticación)
+  - [x] Pantalla de ejecución con progreso en tiempo real
+- [x] Captura de **audios** y **vídeos**
+- [x] Indicador REC + temporizador durante grabación de vídeo/audio
+- [x] Galería multimedia con reproducción integrada de vídeo y audio
+- [x] Vista previa y reproducción de audio en el diálogo de compartición
+- [x] Privacidad: anonimización de rostros (fotos y vídeos) para compartir
+  - [x] Fotos: pixelado con librería `image` (Dart)
+  - [x] Vídeos: overlay de emoji con **Media3 Transformer** (Kotlin nativo, aceleración por hardware)
+- [x] Reconocimiento facial estabilizado: hysteresis (umbral 0.70 on / 0.65 off) + memoria temporal de 2 s
+- [x] Tests unitarios para audio, vídeo, sincronización y nomenclatura de archivos
+
+### Fase 3 (Futuro) 🚧
 - [ ] Clasificación automática por IA (YOLO) del contenido de las imágenes
 - [ ] Generación de informes en PDF/HTML
-- [ ] Soporte iOS completo (pendiente de dispositivo de prueba)
-- [ ] Encriptación avanzada de imágenes en reposo en el móvil
+- [ ] Anotaciones del profesorado
+- [ ] Soporte iOS (pendiente de dispositivo de prueba)
+- [ ] Soporte para analizar y clasificar múltiples caras en vídeos
+- [ ] Soporte para analizar y clasificar múltiples voces en un audio (asamblea) 
 
 ---
 
