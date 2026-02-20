@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Use case to assign multiple evidences to a student
 class AssignEvidencesToStudentUseCase {
@@ -17,7 +18,7 @@ class AssignEvidencesToStudentUseCase {
         successCount++;
       } catch (e) {
         // Log error but continue with other evidences
-        print('Error assigning evidence $evidenceId: $e');
+        Logger.error('Error assigning evidence $evidenceId', e);
       }
     }
 

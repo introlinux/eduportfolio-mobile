@@ -121,23 +121,63 @@ class EvidenceReviewCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: evidence.thumbnailPath != null
-            ? Image.file(
-                File(evidence.thumbnailPath!),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildPlaceholder(theme);
-                },
-              )
-            : evidence.type == EvidenceType.image
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            evidence.thumbnailPath != null
                 ? Image.file(
-                    File(evidence.filePath),
+                    File(evidence.thumbnailPath!),
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return _buildPlaceholder(theme);
                     },
                   )
-                : _buildPlaceholder(theme),
+                : evidence.type == EvidenceType.image
+                    ? Image.file(
+                        File(evidence.filePath),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _buildPlaceholder(theme);
+                        },
+                      )
+                    : _buildPlaceholder(theme),
+
+            // Video play overlay
+            if (evidence.type == EvidenceType.video)
+              Center(
+                child: Icon(
+                  Icons.play_circle_filled,
+                  size: 32,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+
+            // Duration badge
+            if (evidence.type == EvidenceType.video && evidence.duration != null)
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    _formatDuration(evidence.duration!),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -165,5 +205,11 @@ class EvidenceReviewCard extends StatelessWidget {
 
   String _getFileName() {
     return evidence.filePath.split('/').last;
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 }

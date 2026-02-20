@@ -1,6 +1,10 @@
 import 'dart:io';
 
+import 'package:chewie/chewie.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
+import 'package:eduportfolio/core/domain/entities/student.dart';
+import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 
 import 'package:eduportfolio/features/gallery/presentation/providers/gallery_providers.dart';
@@ -11,6 +15,8 @@ import 'package:eduportfolio/features/subjects/presentation/providers/subject_pr
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:just_audio/just_audio.dart' as ja;
+import 'package:video_player/video_player.dart';
 
 /// Evidence detail screen - Full-screen view with swipe navigation
 class EvidenceDetailScreen extends ConsumerStatefulWidget {
@@ -48,6 +54,15 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   Animation<Matrix4>? _zoomAnimation;
   int? _animatingIndex; // Track which image is being animated
 
+  // Video player controllers
+  VideoPlayerController? _videoPlayerController;
+  ChewieController? _chewieController;
+  int? _activeVideoIndex;
+
+  // Audio player controllers
+  ja.AudioPlayer? _audioPlayer;
+  int? _activeAudioIndex;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +72,17 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     // Auto-expand metadata panel if current evidence needs review
     final initialEvidence = widget.evidences[widget.initialIndex];
     _showMetadata = initialEvidence.needsReview;
+
+    // Initialize media player if initial evidence is video or audio
+    if (initialEvidence.type == EvidenceType.video) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initVideoPlayer(widget.initialIndex);
+      });
+    } else if (initialEvidence.type == EvidenceType.audio) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initAudioPlayer(widget.initialIndex);
+      });
+    }
 
     // Initialize transformation controllers for all evidences
     for (int i = 0; i < widget.evidences.length; i++) {
@@ -78,10 +104,79 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
   void dispose() {
     _pageController.dispose();
     _animationController.dispose();
+    _disposeVideoControllers();
+    _disposeAudioPlayer();
     for (var controller in _transformControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _disposeVideoControllers() {
+    _chewieController?.dispose();
+    _videoPlayerController?.dispose();
+    _chewieController = null;
+    _videoPlayerController = null;
+    _activeVideoIndex = null;
+  }
+
+  void _disposeAudioPlayer() {
+    _audioPlayer?.dispose();
+    _audioPlayer = null;
+    _activeAudioIndex = null;
+  }
+
+  Future<void> _initAudioPlayer(int index) async {
+    final evidence = _getEvidence(index);
+    if (evidence.type != EvidenceType.audio) return;
+    if (_activeAudioIndex == index) return;
+
+    _disposeAudioPlayer();
+    _activeAudioIndex = index;
+
+    try {
+      _audioPlayer = ja.AudioPlayer();
+      await _audioPlayer!.setFilePath(evidence.filePath);
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      Logger.error('Error initializing audio player', e);
+    }
+  }
+
+  Future<void> _initVideoPlayer(int index) async {
+    final evidence = _getEvidence(index);
+    if (evidence.type != EvidenceType.video) return;
+    if (_activeVideoIndex == index) return; // Already initialized
+
+    // Dispose previous video controllers if any
+    _disposeVideoControllers();
+    _activeVideoIndex = index;
+
+    try {
+      _videoPlayerController = VideoPlayerController.file(
+        File(evidence.filePath),
+      );
+      await _videoPlayerController!.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController!,
+        autoPlay: false,
+        looping: false,
+        showControls: true,
+        allowFullScreen: false,
+        materialProgressColors: ChewieProgressColors(
+          playedColor: Colors.blue,
+          handleColor: Colors.blue,
+          backgroundColor: Colors.grey,
+          bufferedColor: Colors.lightBlue.withValues(alpha: 0.3),
+        ),
+      );
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      Logger.error('Error initializing video player', e);
+    }
   }
 
   // Check if current image is zoomed
@@ -206,6 +301,17 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
             if (newEvidence.needsReview) {
               _showMetadata = true;
             }
+            // Initialize media player based on type
+            if (newEvidence.type == EvidenceType.video) {
+              _disposeAudioPlayer();
+              _initVideoPlayer(index);
+            } else if (newEvidence.type == EvidenceType.audio) {
+              _disposeVideoControllers();
+              _initAudioPlayer(index);
+            } else {
+              _disposeVideoControllers();
+              _disposeAudioPlayer();
+            }
           });
         },
         itemBuilder: (context, index) {
@@ -235,45 +341,45 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
 
           return Column(
             children: [
-              // Image with zoom/pan (pinch to zoom, drag to pan when zoomed)
+              // Content: Image with zoom/pan, Video player, or Audio player
               Expanded(
-                child: GestureDetector(
-                  onDoubleTapDown: (details) {
-                    // Capture tap position for zoom focus
-                    _handleDoubleTap(index, details.localPosition);
-                  },
-                  child: InteractiveViewer(
-                    transformationController: _transformControllers[index],
-                    minScale: 1.0,
-                    maxScale: 4.0,
-                    panEnabled: true,
-                    scaleEnabled: true,
-                    constrained: true,
-                    // Proper boundaries to prevent black frames
-                    boundaryMargin: const EdgeInsets.all(0),
-                    onInteractionUpdate: (details) {
-                      // Update PageView physics only if zoom state changed
-                      _updateZoomState();
-                    },
-                    onInteractionEnd: (details) {
-                      // Final update when interaction ends
-                      _updateZoomState();
-                    },
-                    child: Center(
-                      child: Image.file(
-                        File(evidence.filePath),
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.white,
-                          );
+                child: evidence.type == EvidenceType.video
+                    ? _buildVideoPlayer(evidence, index)
+                    : evidence.type == EvidenceType.audio
+                        ? _buildAudioPlayer(evidence, index)
+                        : GestureDetector(
+                        onDoubleTapDown: (details) {
+                          _handleDoubleTap(index, details.localPosition);
                         },
+                        child: InteractiveViewer(
+                          transformationController: _transformControllers[index],
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          panEnabled: true,
+                          scaleEnabled: true,
+                          constrained: true,
+                          boundaryMargin: const EdgeInsets.all(0),
+                          onInteractionUpdate: (details) {
+                            _updateZoomState();
+                          },
+                          onInteractionEnd: (details) {
+                            _updateZoomState();
+                          },
+                          child: Center(
+                            child: Image.file(
+                              File(evidence.filePath),
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.broken_image,
+                                  size: 64,
+                                  color: Colors.white,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
               // Metadata section (collapsible with animation)
               AnimatedSize(
@@ -302,27 +408,44 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                     ),
                     const SizedBox(height: 4),
                     subjectsAsync.when(
-                      data: (subjects) => DropdownButtonFormField<int>(
-                        value: evidence.subjectId,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: subjects.map((s) {
-                          return DropdownMenuItem<int>(
-                            value: s.id,
-                            child: Text(s.name),
-                          );
-                        }).toList(),
-                        onChanged: (newSubjectId) async {
-                          if (newSubjectId != null) {
-                            await _updateSubject(newSubjectId, ref);
+                      data: (subjects) {
+                        final uniqueSubjects = <int, Subject>{};
+                        for (final subject in subjects) {
+                          if (subject.id != null) {
+                            uniqueSubjects[subject.id!] = subject;
                           }
-                        },
-                      ),
+                        }
+
+                        final subjectsList = uniqueSubjects.values.toList()
+                          ..sort((a, b) => a.name.compareTo(b.name));
+
+                        // If current subjectId doesn't exist in list, use first available
+                        final validSubjectId = uniqueSubjects.containsKey(evidence.subjectId)
+                            ? evidence.subjectId
+                            : (subjectsList.isNotEmpty ? subjectsList.first.id : null);
+
+                        return DropdownButtonFormField<int>(
+                          value: validSubjectId,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: subjectsList.map((s) {
+                            return DropdownMenuItem<int>(
+                              value: s.id,
+                              child: Text(s.name),
+                            );
+                          }).toList(),
+                          onChanged: (newSubjectId) async {
+                            if (newSubjectId != null) {
+                              await _updateSubject(newSubjectId, ref);
+                            }
+                          },
+                        );
+                      },
                       loading: () => const CircularProgressIndicator(),
                       error: (_, __) => const Text('Error cargando asignaturas'),
                     ),
@@ -337,31 +460,49 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                     ),
                     const SizedBox(height: 4),
                     studentsAsync.when(
-                      data: (students) => DropdownButtonFormField<int?>(
-                        value: evidence.studentId,
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
+                      data: (students) {
+                        final uniqueStudents = <int, Student>{};
+                        for (final student in students) {
+                          if (student.id != null) {
+                            uniqueStudents[student.id!] = student;
+                          }
+                        }
+
+                        final studentsList = uniqueStudents.values.toList()
+                          ..sort((a, b) => a.name.compareTo(b.name));
+
+                        // Validate that current studentId exists in list (or allow null)
+                        final validStudentId = evidence.studentId == null ||
+                                uniqueStudents.containsKey(evidence.studentId)
+                            ? evidence.studentId
+                            : null;
+
+                        return DropdownButtonFormField<int?>(
+                          value: validStudentId,
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(),
                           ),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text('Sin asignar'),
-                          ),
-                          ...students.map((s) {
-                            return DropdownMenuItem<int?>(
-                              value: s.id,
-                              child: Text(s.name),
-                            );
-                          }),
-                        ],
-                        onChanged: (newStudentId) async {
-                          await _updateStudent(newStudentId, ref);
-                        },
-                      ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('Sin asignar'),
+                            ),
+                            ...studentsList.map((s) {
+                              return DropdownMenuItem<int?>(
+                                value: s.id,
+                                child: Text(s.name),
+                              );
+                            }),
+                          ],
+                          onChanged: (newStudentId) async {
+                            await _updateStudent(newStudentId, ref);
+                          },
+                        );
+                      },
                       loading: () => const CircularProgressIndicator(),
                       error: (_, __) => const Text('Error cargando estudiantes'),
                     ),
@@ -382,6 +523,28 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // Duration (video/audio)
+                    if (evidence.duration != null &&
+                        (evidence.type == EvidenceType.video ||
+                            evidence.type == EvidenceType.audio))
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.timer,
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatDuration(evidence.duration!),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    if (evidence.duration != null &&
+                        (evidence.type == EvidenceType.video ||
+                            evidence.type == EvidenceType.audio))
+                      const SizedBox(height: 8),
                     // File size
                     if (evidence.fileSizeMB != null)
                       Row(
@@ -600,12 +763,217 @@ class _EvidenceDetailScreenState extends ConsumerState<EvidenceDetailScreen>
     final evidence = _currentEvidence;
     final file = File(evidence.filePath);
     final privacyService = ref.read(privacyServiceProvider);
+    final videoPrivacyService = ref.read(media3VideoPrivacyServiceProvider);
 
     await showDialog(
       context: context,
       builder: (context) => SharePreviewDialog(
         originalFiles: [file],
+        thumbnailPaths: evidence.thumbnailPath != null 
+            ? {evidence.filePath: evidence.thumbnailPath!} 
+            : null,
         privacyService: privacyService,
+        videoPrivacyService: videoPrivacyService,
+      ),
+    );
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildAudioPlayer(Evidence evidence, int index) {
+    // Trigger initialization if not already done
+    if (_activeAudioIndex != index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initAudioPlayer(index);
+      });
+    }
+
+    return Stack(
+      children: [
+        // Cover image as background
+        if (evidence.thumbnailPath != null)
+          Positioned.fill(
+            child: Image.file(
+              File(evidence.thumbnailPath!),
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.mic, size: 64, color: Colors.white54),
+              ),
+            ),
+          )
+        else
+          const Center(
+            child: Icon(Icons.mic, size: 64, color: Colors.white54),
+          ),
+
+        // Audio controls overlay at bottom
+        if (_audioPlayer != null && _activeAudioIndex == index)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.8),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Play/pause button
+                  StreamBuilder<ja.PlayerState>(
+                    stream: _audioPlayer!.playerStateStream,
+                    builder: (context, snapshot) {
+                      final playerState = snapshot.data;
+                      final playing = playerState?.playing ?? false;
+                      final processingState = playerState?.processingState;
+
+                      if (processingState == ja.ProcessingState.completed) {
+                        // Reset to beginning when completed
+                        return IconButton(
+                          iconSize: 56,
+                          icon: const Icon(Icons.replay, color: Colors.white),
+                          onPressed: () {
+                            _audioPlayer!.seek(Duration.zero);
+                            _audioPlayer!.play();
+                          },
+                        );
+                      }
+
+                      return IconButton(
+                        iconSize: 56,
+                        icon: Icon(
+                          playing ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          if (playing) {
+                            _audioPlayer!.pause();
+                          } else {
+                            _audioPlayer!.play();
+                          }
+                        },
+                      );
+                    },
+                  ),
+                  // Seek bar
+                  StreamBuilder<Duration>(
+                    stream: _audioPlayer!.positionStream,
+                    builder: (context, snapshot) {
+                      final position = snapshot.data ?? Duration.zero;
+                      final duration = _audioPlayer!.duration ?? Duration.zero;
+
+                      return Row(
+                        children: [
+                          Text(
+                            _formatDurationMs(position),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Expanded(
+                            child: Slider(
+                              value: duration.inMilliseconds > 0
+                                  ? position.inMilliseconds
+                                      .toDouble()
+                                      .clamp(0, duration.inMilliseconds.toDouble())
+                                  : 0,
+                              max: duration.inMilliseconds > 0
+                                  ? duration.inMilliseconds.toDouble()
+                                  : 1,
+                              activeColor: Colors.blue,
+                              inactiveColor: Colors.white24,
+                              onChanged: (value) {
+                                _audioPlayer!.seek(
+                                  Duration(milliseconds: value.toInt()),
+                                );
+                              },
+                            ),
+                          ),
+                          Text(
+                            _formatDurationMs(duration),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+      ],
+    );
+  }
+
+  String _formatDurationMs(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Widget _buildVideoPlayer(Evidence evidence, int index) {
+    // Trigger initialization if not already done
+    if (_activeVideoIndex != index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initVideoPlayer(index);
+      });
+    }
+
+    if (_chewieController != null && _activeVideoIndex == index) {
+      return Chewie(controller: _chewieController!);
+    }
+
+    // Show loading state or thumbnail while initializing
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (evidence.thumbnailPath != null)
+            Expanded(
+              child: Image.file(
+                File(evidence.thumbnailPath!),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.videocam,
+                  size: 64,
+                  color: Colors.white54,
+                ),
+              ),
+            )
+          else
+            const Icon(
+              Icons.videocam,
+              size: 64,
+              color: Colors.white54,
+            ),
+          const SizedBox(height: 16),
+          const CircularProgressIndicator(color: Colors.white),
+          const SizedBox(height: 8),
+          const Text(
+            'Cargando vídeo...',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ],
       ),
     );
   }

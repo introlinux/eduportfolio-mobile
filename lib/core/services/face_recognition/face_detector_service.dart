@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:isolate';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:flutter/foundation.dart';
 
 /// Service for detecting faces in images
 ///
@@ -62,16 +62,14 @@ class FaceDetectorService {
       layerIndex++;
     }
 
-    print('Generated ${_anchors!.length} anchors for BlazeFace Short-Range');
+    Logger.debug('Generated ${_anchors!.length} anchors for BlazeFace Short-Range');
   }
 
   /// Initialize the face detection model
   Future<void> initialize() async {
-    print('========================================');
-    print('Initializing FaceDetectorService...');
-    print('========================================');
+    Logger.info('Initializing FaceDetectorService...');
     try {
-      print('Loading BlazeFace Full-Range model from assets...');
+      Logger.debug('Loading BlazeFace Short-Range model from assets...');
 
       // Configure interpreter options with GPU acceleration
       final options = InterpreterOptions();
@@ -79,21 +77,18 @@ class FaceDetectorService {
       // Enable GPU acceleration for better performance
       try {
         if (Platform.isAndroid) {
-          print('Configuring GPU delegate for Android...');
           final gpuDelegate = GpuDelegateV2(
             options: GpuDelegateOptionsV2(),
           );
           options.addDelegate(gpuDelegate);
-          print('✓ GPU delegate configured for Android');
+          Logger.debug('GPU delegate configured for Android');
         } else if (Platform.isIOS) {
-          print('Configuring GPU delegate for iOS...');
           final gpuDelegate = GpuDelegate();
           options.addDelegate(gpuDelegate);
-          print('✓ GPU delegate configured for iOS');
+          Logger.debug('GPU delegate configured for iOS');
         }
       } catch (e) {
-        print('⚠️  GPU delegate setup failed: $e');
-        print('⚠️  Falling back to CPU execution');
+        Logger.warning('GPU delegate setup failed, falling back to CPU', e);
       }
 
       // Set number of threads for CPU fallback
@@ -104,8 +99,6 @@ class FaceDetectorService {
         options: options,
       );
 
-      print('✓ BlazeFace Short-Range model loaded successfully');
-
       // Generate anchors for box decoding
       _generateAnchors();
 
@@ -113,25 +106,9 @@ class FaceDetectorService {
       final outputShape0 = _interpreter!.getOutputTensor(0).shape;
       final outputShape1 = _interpreter!.getOutputTensor(1).shape;
 
-      print('✓ Model shapes verified:');
-      print('  - Input: $inputShape (expected: [1, 128, 128, 3])');
-      print('  - Output 0 (boxes): $outputShape0 (expected: [1, 896, 16])');
-      print('  - Output 1 (scores): $outputShape1 (expected: [1, 896])');
-      print('✓ BlazeFace Full-Range ready (detects faces up to 5 meters)');
-      print('✓ GPU acceleration: ${Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Not available"}');
-      print('========================================');
+      Logger.info('FaceDetectorService ready — input: $inputShape, boxes: $outputShape0, scores: $outputShape1');
     } catch (e, stackTrace) {
-      print('========================================');
-      print('✗ ERROR loading BlazeFace model');
-      print('✗ Error type: ${e.runtimeType}');
-      print('✗ Error details: $e');
-      print('✗ Stack trace (first 5 lines):');
-      final stackLines = stackTrace.toString().split('\n').take(5);
-      for (final line in stackLines) {
-        print('  $line');
-      }
-      print('✗ Face detection will FAIL (placeholder returns null)');
-      print('========================================');
+      Logger.error('Failed to load BlazeFace model — face detection will not work', e, stackTrace);
       // Don't rethrow - allow graceful degradation
     }
   }
@@ -140,7 +117,7 @@ class FaceDetectorService {
   void dispose() {
     _interpreter?.close();
     _interpreter = null;
-    print('Face detector disposed');
+    Logger.debug('Face detector disposed');
   }
 
   /// Detect face and return both processed image and detection (OPTIMIZED for training)
@@ -151,7 +128,6 @@ class FaceDetectorService {
     File imageFile,
   ) async {
     try {
-      debugPrint('    - Reading and decoding image...');
       final readStart = DateTime.now();
 
       // Run heavy image decoding in Isolate
@@ -174,13 +150,10 @@ class FaceDetectorService {
       }
 
       final readDuration = DateTime.now().difference(readStart);
-      debugPrint('    - Image decoded in ${readDuration.inMilliseconds}ms');
+      Logger.debug('Image decoded in ${readDuration.inMilliseconds}ms');
 
-      debugPrint('    - Detecting face...');
-      final detectionStart = DateTime.now();
-      final detection = await _detectFaceWithBlazeFace(image);
-      final detectionDuration = DateTime.now().difference(detectionStart);
-      debugPrint('    - Face detected in ${detectionDuration.inMilliseconds}ms');
+      final detections = await _detectFacesWithBlazeFace(image);
+      final detection = detections.isNotEmpty ? detections.first : null;
 
       if (detection == null) {
         return null;
@@ -189,7 +162,7 @@ class FaceDetectorService {
       // Return both image and detection
       return (processedImage: image, detection: detection);
     } catch (e) {
-      debugPrint('❌ Error detecting face from file: $e');
+      Logger.error('Error detecting face from file', e);
       return null;
     }
   }
@@ -216,9 +189,10 @@ class FaceDetectorService {
       if (image == null) return null;
 
       // Use BlazeFace for detection (no debug image for performance)
-      return await _detectFaceWithBlazeFace(image, generateDebugImage: false);
+      final detections = await _detectFacesWithBlazeFace(image, generateDebugImage: false);
+      return detections.isNotEmpty ? detections.first : null;
     } catch (e) {
-      print('Error detecting face: $e');
+      Logger.error('Error detecting face', e);
       return null;
     }
   }
@@ -226,12 +200,21 @@ class FaceDetectorService {
   /// Detect face from already loaded image (e.g. from camera stream).
   /// [generateDebugImage] controls whether a debug visualization is produced;
   /// set to false when only the bounding box is needed (e.g. privacy pixelation).
-  Future<FaceDetectionResult?> detectFaceFromImage(img.Image image, {bool generateDebugImage = true}) async {
+  Future<FaceDetectionResult?> detectFaceFromImage(img.Image image,
+      {bool generateDebugImage = true}) async {
+    final faces = await detectFacesFromImage(image, generateDebugImage: generateDebugImage);
+    return faces.isNotEmpty ? faces.first : null;
+  }
+
+  /// Detect ALL faces from already loaded image.
+  /// Returns a list of detected faces, sorted by confidence.
+  Future<List<FaceDetectionResult>> detectFacesFromImage(img.Image image,
+      {bool generateDebugImage = true}) async {
     try {
-      return await _detectFaceWithBlazeFace(image, generateDebugImage: generateDebugImage);
+      return await _detectFacesWithBlazeFace(image, generateDebugImage: generateDebugImage);
     } catch (e) {
-      print('Error detecting face from image: $e');
-      return null;
+      Logger.error('Error detecting face from image', e);
+      return []; // Return empty list on error
     }
   }
 
@@ -269,11 +252,9 @@ class FaceDetectorService {
         return null;
       }
 
-      // DEBUG: Log image dimensions to verify orientation
-      print('  - DEBUG Image dimensions after bakeOrientation: ${image.width}x${image.height}');
-
       // Use BlazeFace for real face detection
-      final detection = await _detectFaceWithBlazeFace(image);
+      final detections = await _detectFacesWithBlazeFace(image);
+      final detection = detections.isNotEmpty ? detections.first : null;
 
       if (detection == null) {
         return null;
@@ -286,7 +267,7 @@ class FaceDetectorService {
 
       return croppedFace;
     } catch (e) {
-      print('Error detecting face: $e');
+      Logger.error('Error in detectAndCropFace', e);
       return null;
     }
   }
@@ -300,22 +281,12 @@ class FaceDetectorService {
     FaceDetectionResult detection,
   ) async {
     try {
-      debugPrint('🚀 OPTIMIZED: Cropping with pre-computed detection (SKIP detection + I/O)');
-      final startTime = DateTime.now();
-
-      debugPrint('  - Image already in memory: ${image.width}x${image.height}');
-
       // Perform cropping in Isolate (image already processed, just crop!)
-      final croppedFace = await Isolate.run(() {
+      return await Isolate.run(() {
         return _alignAndCropFace(image, detection);
       });
-
-      final duration = DateTime.now().difference(startTime);
-      debugPrint('✅ OPTIMIZED crop completed in ${duration.inMilliseconds}ms');
-
-      return croppedFace;
     } catch (e) {
-      debugPrint('❌ Error cropping face with detection: $e');
+      Logger.error('Error cropping face with detection', e);
       return null;
     }
   }
@@ -341,7 +312,8 @@ class FaceDetectorService {
         return null;
       }
 
-      final detection = await _detectFaceWithBlazeFace(image);
+      final detections = await _detectFacesWithBlazeFace(image);
+      final detection = detections.isNotEmpty ? detections.first : null;
 
       if (detection == null) {
         return null;
@@ -353,7 +325,7 @@ class FaceDetectorService {
 
       return croppedFace;
     } catch (e) {
-      print('Error detecting face from bytes: $e');
+      Logger.error('Error detecting face from bytes', e);
       return null;
     }
   }
@@ -368,26 +340,19 @@ class FaceDetectorService {
       final rightEye = detection.rightEye!;
       final leftEye = detection.leftEye!;
 
-      // DEBUG: Log landmark positions
-      print('  - DEBUG Landmarks: rightEye=(${rightEye.x.toStringAsFixed(1)}, ${rightEye.y.toStringAsFixed(1)}), leftEye=(${leftEye.x.toStringAsFixed(1)}, ${leftEye.y.toStringAsFixed(1)})');
-      print('  - DEBUG FaceBox: x=${faceRect.x}, y=${faceRect.y}, w=${faceRect.width}, h=${faceRect.height}');
-
       // Calculate angle between eyes
       // For a normal upright face: leftEye.x < rightEye.x (left eye is on the left side of image)
       // Use (leftEye - rightEye) to get vector pointing from right to left
       final dy = leftEye.y - rightEye.y;
       final dx = leftEye.x - rightEye.x;
-      
+
       // Calculate angle in degrees
       final angleRad = atan2(dy, dx);
       var angleDeg = angleRad * 180 / pi;
 
-      print('  - DEBUG: dy=$dy, dx=$dx, angleDeg=${angleDeg.toStringAsFixed(1)}');
-
       // Only apply rotation if angle is reasonable (between -30 and +30 degrees)
       // Larger values indicate incorrect landmark detection
       if (angleDeg.abs() > 5.0 && angleDeg.abs() <= 30.0) {
-        print('  - Face rotation needed: ${angleDeg.toStringAsFixed(1)}°');
         
         // Strategy: Crop a larger area, rotate it, then crop the core face.
         // This avoids rotating the full multi-megapixel image.
@@ -464,45 +429,38 @@ class FaceDetectorService {
   /// Detect face using BlazeFace TFLite model
   ///
   /// Set [generateDebugImage] to false to skip debug image generation (improves performance)
-  Future<FaceDetectionResult?> _detectFaceWithBlazeFace(
+  /// Detect faces using BlazeFace TFLite model
+  ///
+  /// Set [generateDebugImage] to false to skip debug image generation (improves performance)
+  Future<List<FaceDetectionResult>> _detectFacesWithBlazeFace(
     img.Image image, {
     bool generateDebugImage = false,
   }) async {
-    // Fallback to placeholder if model not initialized
+    // Fallback if model not initialized
     if (_interpreter == null) {
-      print('⚠️  BlazeFace not initialized - model failed to load');
-      return null;
+      Logger.warning('BlazeFace not initialized — model failed to load');
+      return [];
     }
 
-    // print('🔍 Detecting face with BlazeFace...');
-
     try {
-      // Aspect Ratio Preservation:
-      // BlazeFace expects 128x128 square input. Default copyResize distorts aspect ratio,
-      // creating "squashed" faces in portrait mode (9:16 -> 1:1) which fails detection.
-      // We must Pad to Square (Letterbox) before resizing.
-      
+      // Aspect Ratio Preservation (Same as before)
       final double imgW = image.width.toDouble();
       final double imgH = image.height.toDouble();
       final double maxDim = max(imgW, imgH);
       
-      // Calculate padding to center image in square
       final double padX = (maxDim - imgW) / 2.0;
       final double padY = (maxDim - imgH) / 2.0;
       
-      // Process image in isolate for better performance
+      // Process image in isolate
       final tensor = await Isolate.run(() {
-        // Create square canvas
         final square = img.Image(
           width: maxDim.toInt(),
           height: maxDim.toInt(),
           backgroundColor: img.ColorRgb8(0, 0, 0)
         );
 
-        // Composite original image into center
         img.compositeImage(square, image, dstX: padX.toInt(), dstY: padY.toInt());
 
-        // Now resize the SQUARE image to 128x128 (Aspect ratio preserved)
         final resized = img.copyResize(
           square,
           width: 128,
@@ -514,10 +472,11 @@ class FaceDetectorService {
       });
 
       final input = tensor;
-      // Generate debug image only if requested (on main thread to avoid isolate complexity)
       Uint8List? debugImageBytes;
+      
       if (generateDebugImage) {
-        final square = img.Image(
+        // ... debug image generation same as before ...
+         final square = img.Image(
           width: maxDim.toInt(),
           height: maxDim.toInt(),
           backgroundColor: img.ColorRgb8(0, 0, 0)
@@ -527,9 +486,6 @@ class FaceDetectorService {
         debugImageBytes = img.encodeJpg(resized);
       }
 
-      // Prepare output tensors
-      // Output 0: Detection boxes [1, 896, 16] (coords + landmarks)
-      // Output 1: Detection scores [1, 896, 1]
       var outputBoxes = List.generate(
         1,
         (_) => List.generate(896, (_) => List.filled(16, 0.0)),
@@ -539,7 +495,6 @@ class FaceDetectorService {
         (_) => List.generate(896, (_) => [0.0]),
       );
 
-      // Run inference (Must happen on same thread where interpreter was created/loaded)
       _interpreter!.runForMultipleInputs(
         [input],
         {
@@ -548,135 +503,132 @@ class FaceDetectorService {
         },
       );
 
-      // Post-processing finding max score
-      // This is fast enough for main thread
-      double maxScore = 0.0;
-      int maxIndex = -1;
+      // Collect all valid detections above threshold
+      const confidenceThreshold = 0.70;
+      const modelInputSize = 128.0;
+      const modelInputSize128 = 128.0;
+      final scale = maxDim / modelInputSize128;
+
       final scores = outputScores[0];
+      final boxes = outputBoxes[0];
+      
+      List<FaceDetectionResult> detections = [];
 
       for (int i = 0; i < scores.length; i++) {
         final score = scores[i][0];
-        if (score > maxScore) {
-          maxScore = score;
-          maxIndex = i;
+        if (score < confidenceThreshold) continue;
+
+        final rawData = boxes[i];
+        final anchor = _anchors![i];
+
+        // Decode Box
+        final yCenterNorm = (rawData[0] / modelInputSize) + anchor[1];
+        final xCenterNorm = (rawData[1] / modelInputSize) + anchor[0];
+        final heightNorm = rawData[2] / modelInputSize;
+        final widthNorm = rawData[3] / modelInputSize;
+
+        // Map to Pixel Space
+        final yCenterPx = (yCenterNorm * modelInputSize128) * scale;
+        final xCenterPx = (xCenterNorm * modelInputSize128) * scale;
+        final heightPx = (heightNorm * modelInputSize128) * scale;
+        final widthPx = (widthNorm * modelInputSize128) * scale;
+
+        // Map to Original Image
+        final yCenter = yCenterPx - padY;
+        final xCenter = xCenterPx - padX;
+        final height = heightPx;
+        final width = widthPx;
+
+        // Calculate Corners
+        final ymin = yCenter - height / 2;
+        final xmin = xCenter - width / 2;
+        final ymax = yCenter + height / 2;
+        final xmax = xCenter + width / 2;
+
+        // Landmarks Helper
+        Point<double> getLandmark(int index) {
+          final lyNorm = (rawData[4 + index * 2] / modelInputSize) + anchor[1];
+          final lxNorm = (rawData[4 + index * 2 + 1] / modelInputSize) + anchor[0];
+          final lyPx = lyNorm * maxDim;
+          final lxPx = lxNorm * maxDim;
+          return Point(lxPx - padX, lyPx - padY);
         }
+
+        final rightEye = getLandmark(0);
+        final leftEye = getLandmark(1);
+
+        // Integer Rect with Clamping
+        int x = xmin.toInt();
+        int y = ymin.toInt();
+        int w = (xmax - xmin).toInt();
+        int h = (ymax - ymin).toInt();
+
+        // Padding
+        final paddingX = (w * 0.2).toInt();
+        final paddingY = (h * 0.2).toInt();
+
+        x = (x - paddingX).clamp(0, imgW.toInt() - 1);
+        y = (y - paddingY).clamp(0, imgH.toInt() - 1);
+        w = (w + 2 * paddingX).clamp(1, imgW.toInt() - x);
+        h = (h + 2 * paddingY).clamp(1, imgH.toInt() - y);
+
+        detections.add(FaceDetectionResult(
+          box: FaceRect(x: x, y: y, width: w, height: h),
+          rightEye: rightEye,
+          leftEye: leftEye,
+          debugImage: debugImageBytes,
+          score: score,
+        ));
       }
 
-      const confidenceThreshold = 0.70;
-      if (maxScore < confidenceThreshold) {
-        // print('No face detected (max confidence: ${maxScore.toStringAsFixed(2)})');
-        return null;
-      }
-
-      // Decode bounding box and landmarks
-      final rawData = outputBoxes[0][maxIndex];
-      final anchor = _anchors![maxIndex];
-      const modelInputSize = 128.0;
-
-      // Decode Box (Normalized 0..1 relative to the 128x128 Input Square)
-      final yCenterNorm = (rawData[0] / modelInputSize) + anchor[1];
-      final xCenterNorm = (rawData[1] / modelInputSize) + anchor[0];
-      final heightNorm = rawData[2] / modelInputSize;
-      final widthNorm = rawData[3] / modelInputSize;
-
-      // Map from Model Space (128x128) to Square Space (maxDim x maxDim)
-      // The model outputs normalized coords relative to 128x128, so we scale up
-      const modelInputSize128 = 128.0;
-      final yCenterPx128 = yCenterNorm * modelInputSize128;
-      final xCenterPx128 = xCenterNorm * modelInputSize128;
-      final heightPx128 = heightNorm * modelInputSize128;
-      final widthPx128 = widthNorm * modelInputSize128;
-
-      // Now scale from 128x128 to maxDim x maxDim (the square before resizing)
-      final scale = maxDim / modelInputSize128;
-      final yCenterPx = yCenterPx128 * scale;
-      final xCenterPx = xCenterPx128 * scale;
-      final heightPx = heightPx128 * scale;
-      final widthPx = widthPx128 * scale;
-
-      // Map from Square to Original Image (Subtract Padding)
-      final yCenter = yCenterPx - padY;
-      final xCenter = xCenterPx - padX;
-      // Width/Height maintain same scale
-      final height = heightPx;
-      final width = widthPx;
-
-      final imgWidth = image.width;
-      final imgHeight = image.height;
-
-      // Debug logs (commented out for performance)
-      // print('DEBUG DETECT: Img=${imgWidth}x${imgHeight} MaxDim=$maxDim Pad=${padX}x${padY}');
-      // print('DEBUG DETECT: RawModel=[y:${rawData[0]}, x:${rawData[1]}, h:${rawData[2]}, w:${rawData[3]}]');
-      // print('DEBUG DETECT: Anchor=[x:${anchor[0]}, y:${anchor[1]}]');
-      // print('DEBUG DETECT: NormBox=[y:$yCenterNorm, x:$xCenterNorm, h:$heightNorm, w:$widthNorm]');
-      // print('DEBUG DETECT: PxBoxInSquare=[y:$yCenterPx, x:$xCenterPx, h:$heightPx, w:$widthPx]');
-      // print('DEBUG DETECT: FinalBox=[y:$yCenter, x:$xCenter, h:$height, w:$width]');
-
-      // Calculate Box Corners (in PIXELS)
-      final ymin = yCenter - height / 2;
-      final xmin = xCenter - width / 2;
-      final ymax = yCenter + height / 2;
-      final xmax = xCenter + width / 2;
-
-      // print('DEBUG DETECT: FinalCorners=[ymin:$ymin, xmin:$xmin, ymax:$ymax, xmax:$xmax]');
-
-      // Landmarks Decoding Helper
-      // They also need to be mapped from Normalized -> Square -> Original
-      Point<double> getLandmark(int index) {
-        final lyNorm = (rawData[4 + index * 2] / modelInputSize) + anchor[1];
-        final lxNorm = (rawData[4 + index * 2 + 1] / modelInputSize) + anchor[0];
-        
-        final lyPx = lyNorm * maxDim;
-        final lxPx = lxNorm * maxDim;
-        
-        return Point(lxPx - padX, lyPx - padY);
-      }
-      
-      final rightEye = getLandmark(0);
-      final leftEye = getLandmark(1);
-      // final nose = getLandmark(2);
-
-      // Convert to Integer Rect (Clamped to image bounds)
-      int x = xmin.toInt();
-      int y = ymin.toInt();
-      int w = (xmax - xmin).toInt();
-      int h = (ymax - ymin).toInt();
-
-      // Add padding (Face box is usually tight 1:1, add context)
-      final paddingX = (w * 0.2).toInt();
-      final paddingY = (h * 0.2).toInt();
-
-      x = (x - paddingX).clamp(0, imgWidth - 1).toInt();
-      y = (y - paddingY).clamp(0, imgHeight - 1).toInt();
-      w = (w + 2 * paddingX).clamp(1, imgWidth - x).toInt();
-      h = (h + 2 * paddingY).clamp(1, imgHeight - y).toInt();
-
-      print('Face detected with confidence: ${maxScore.toStringAsFixed(2)}');
-      
-      // Return the debug image too (Input Square)
-      // We need to re-encode it closer to the generation point or here.
-      // Since 'image' here is the original full size, and we lost the 'resized' 128x128
-      // inside the isolate, we can't easily return the EXACT tensor image unless we change the isolate return type.
-      
-      // Let's assume for now we just want to see the alignment, 
-      // but to see the tensor input we need to modify the Isolate block.
-      // But for simplicity, I will skip returning the exact debug image from Isolate for now to minimize code churn,
-      // UNLESS necessary.
-      // Wait, the plan IS to return it. Okay.
-      
-      print('Face detected with confidence: ${maxScore.toStringAsFixed(2)}');
-      
-      return FaceDetectionResult(
-        box: FaceRect(x: x, y: y, width: w, height: h),
-        rightEye: rightEye,
-        leftEye: leftEye,
-        debugImage: debugImageBytes,
-      );
+      // Perform Non-Maximum Suppression (NMS)
+      return _nonMaxSuppression(detections, 0.3);
 
     } catch (e) {
-      print('Error in BlazeFace detection: $e');
-      return null;
+      Logger.error('Error in BlazeFace detection', e);
+      return [];
     }
+  }
+
+  /// Calculate IoU (Intersection over Union)
+  double _iou(FaceRect a, FaceRect b) {
+    final areaA = a.width * a.height;
+    final areaB = b.width * b.height;
+    
+    final intersectionX = max(a.x, b.x);
+    final intersectionY = max(a.y, b.y);
+    final intersectionW = max(0, min(a.x + a.width, b.x + b.width) - intersectionX);
+    final intersectionH = max(0, min(a.y + a.height, b.y + b.height) - intersectionY);
+    
+    final intersectionArea = intersectionW * intersectionH;
+    return intersectionArea / (areaA + areaB - intersectionArea);
+  }
+
+  /// Non-Maximum Suppression
+  List<FaceDetectionResult> _nonMaxSuppression(List<FaceDetectionResult> detections, double iouThreshold) {
+    if (detections.isEmpty) return [];
+
+    // Sort by score descending
+    detections.sort((a, b) => b.score.compareTo(a.score));
+
+    List<FaceDetectionResult> picked = [];
+    List<bool> suppressed = List.filled(detections.length, false);
+
+    for (int i = 0; i < detections.length; i++) {
+      if (suppressed[i]) continue;
+
+      picked.add(detections[i]);
+
+      for (int j = i + 1; j < detections.length; j++) {
+        if (suppressed[j]) continue;
+
+        if (_iou(detections[i].box, detections[j].box) > iouThreshold) {
+          suppressed[j] = true;
+        }
+      }
+    }
+
+    return picked;
   }
 
   /// Static helper for Isolate usage
@@ -719,8 +671,15 @@ class FaceDetectionResult {
   final Point<double>? rightEye;
   final Point<double>? leftEye;
   final Uint8List? debugImage;
+  final double score;
 
-  FaceDetectionResult({required this.box, this.rightEye, this.leftEye, this.debugImage});
+  FaceDetectionResult({
+    required this.box, 
+    this.rightEye, 
+    this.leftEye, 
+    this.debugImage,
+    this.score = 0.0,
+  });
 }
 
 class FaceRect {

@@ -3,12 +3,13 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
-import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
+import 'package:eduportfolio/core/providers/core_providers.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
@@ -201,7 +202,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
           if (convertedImage != null && mounted) {
             var processedImage = convertedImage;
             
-            debugPrint('Live detection - Original image: ${convertedImage.width}x${convertedImage.height}');
+            Logger.debug('Live detection - Original image: ${convertedImage.width}x${convertedImage.height}');
             
             // AUTOMATIC ROTATION CORRECTION
             // The camera sensor typically returns landscape images (Width > Height).
@@ -220,10 +221,10 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
                // It's landscape, rotate to portrait
                final angle = isFront ? 270 : 90;
                processedImage = img.copyRotate(convertedImage, angle: angle);
-               debugPrint('Live detection - Rotated $angle° to: ${processedImage.width}x${processedImage.height}');
+               Logger.debug('Live detection - Rotated $angle° to: ${processedImage.width}x${processedImage.height}');
             } else {
                // Already portrait (rare for raw sensor data but possible)
-               debugPrint('Live detection - No rotation applied (already portrait)');
+               Logger.debug('Live detection - No rotation applied (already portrait)');
             }
 
             // Flip if front camera to correct mirror effect (for training consistency)
@@ -236,7 +237,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
             final int targetWidth = 160; // Slightly smaller for speed
             final int targetHeight = (processedImage.height * targetWidth / processedImage.width).round();
             
-            debugPrint('Live detection - Resizing to: ${targetWidth}x${targetHeight}');
+            Logger.debug('Live detection - Resizing to: ${targetWidth}x${targetHeight}');
             
             final img.Image resizedImage = img.copyResize(
               processedImage,
@@ -264,8 +265,8 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
                   _cachedStreamImage = processedImage;
                   _cachedDetection = result;
 
-                  debugPrint('Live detection - Face found at: x=${result.box.x}, y=${result.box.y}, w=${result.box.width}, h=${result.box.height}');
-                  debugPrint('Live detection - Detection image size: ${_detectionImageWidth}x${_detectionImageHeight}');
+                  Logger.debug('Live detection - Face found at: x=${result.box.x}, y=${result.box.y}, w=${result.box.width}, h=${result.box.height}');
+                  Logger.debug('Live detection - Detection image size: ${_detectionImageWidth}x${_detectionImageHeight}');
 
                   if (result.box.width < 40) {
                     _faceQualityMessage = "Acércate más";
@@ -283,13 +284,13 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
             }
           }
         } catch (e) {
-          debugPrint('Live detection error: $e');
+          Logger.error('Live detection error', e);
         } finally {
           _isProcessingFrame = false;
         }
       });
     } catch (e) {
-      debugPrint('Failed to start stream: $e');
+      Logger.error('Failed to start stream', e);
       _isStreamActive = false;
     }
   }
@@ -300,7 +301,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
         _cameraController!.stopImageStream();
         _isStreamActive = false;
       } catch (e) {
-        debugPrint('Failed to stop stream: $e');
+        Logger.error('Failed to stop stream', e);
       }
     }
   }
@@ -315,8 +316,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       return;
     }
 
-    debugPrint('');
-    debugPrint('📸 CAPTURE ${_capturedPhotos.length + 1}/5 (stream) started...');
+    Logger.debug('Capture ${_capturedPhotos.length + 1}/5 (stream) started...');
     final captureStartTime = DateTime.now();
 
     setState(() => _isCapturing = true);
@@ -347,8 +347,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
             : null,
       );
 
-      debugPrint('  - Cached image: ${image.width}x${image.height}');
-      debugPrint('  - Mapped box: ${mappedDetection.box}');
+      Logger.debug('Cached image: ${image.width}x${image.height}, mapped box: ${mappedDetection.box}');
 
       // NOTE: The Android orientation workaround is NOT needed here because
       // the image from the camera stream was already rotated during live detection
@@ -368,8 +367,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
       });
 
       final captureTotalDuration = DateTime.now().difference(captureStartTime);
-      debugPrint('✅ CAPTURE ${_capturedPhotos.length}/5 completed in ${captureTotalDuration.inMilliseconds}ms');
-      debugPrint('');
+      Logger.debug('Capture ${_capturedPhotos.length}/5 completed in ${captureTotalDuration.inMilliseconds}ms');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -715,7 +713,7 @@ class _FaceTrainingScreenState extends ConsumerState<FaceTrainingScreen> {
     final double boxW = _detectedFaceRect!.width.toDouble();
     final double boxH = _detectedFaceRect!.height.toDouble();
 
-    debugPrint('Overlay - Box: $boxX,$boxY ${boxW}x$boxH in ${detW}x$detH');
+    Logger.debug('Overlay - Box: $boxX,$boxY ${boxW}x$boxH in ${detW}x$detH');
 
     // Check if Front Camera (Mirroring)
      final isFront = _availableCameras.isNotEmpty && 

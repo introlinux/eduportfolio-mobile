@@ -232,12 +232,8 @@ class _SubjectListTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final color = subject.color != null
-        ? _getColorFromString(subject.color!)
-        : theme.colorScheme.primary;
-    final icon = subject.icon != null
-        ? _getIconFromString(subject.icon!)
-        : Icons.book;
+    final color = _getColorFromString(subject.color);
+    final icon = _getIconFromString(subject.icon);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -269,7 +265,7 @@ class _SubjectListTile extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'DEFAULT',
+                  'En inicio',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.bold,

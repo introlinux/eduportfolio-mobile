@@ -51,12 +51,48 @@ class _SubjectFormDialogState extends State<SubjectFormDialog> {
     {'name': 'Sin Asignar', 'icon': Icons.help_outline},
   ];
 
+  static String _defaultColorForName(String name) {
+    switch (name.toLowerCase()) {
+      case 'matemáticas':
+        return '0xFF2196F3';
+      case 'lengua':
+        return '0xFFF44336';
+      case 'ciencias':
+        return '0xFF4CAF50';
+      case 'inglés':
+        return '0xFFFF9800';
+      case 'artística':
+        return '0xFF9C27B0';
+      default:
+        return '0xFF2196F3';
+    }
+  }
+
+  static String _defaultIconForName(String name) {
+    switch (name.toLowerCase()) {
+      case 'matemáticas':
+        return 'calculate';
+      case 'lengua':
+        return 'menu_book';
+      case 'ciencias':
+        return 'science';
+      case 'inglés':
+        return 'language';
+      case 'artística':
+        return 'palette';
+      default:
+        return 'book';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.subject?.name ?? '');
-    _selectedColor = widget.subject?.color ?? '0xFF2196F3';
-    _selectedIcon = widget.subject?.icon ?? 'book';
+    _selectedColor = widget.subject?.color ??
+        _defaultColorForName(widget.subject?.name ?? '');
+    _selectedIcon = widget.subject?.icon ??
+        _defaultIconForName(widget.subject?.name ?? '');
     _isDefault = widget.subject?.isDefault ?? false;
   }
 

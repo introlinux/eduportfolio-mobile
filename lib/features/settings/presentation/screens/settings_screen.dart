@@ -3,6 +3,7 @@ import 'package:eduportfolio/features/gallery/presentation/providers/gallery_pro
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
 import 'package:eduportfolio/features/review/presentation/providers/review_providers.dart'
     as review;
+import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
 import 'package:eduportfolio/features/students/presentation/providers/student_providers.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,30 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: const Text('Configurar calidad de captura'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showImageResolutionDialog(context, ref),
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(
+              Icons.videocam,
+              color: theme.colorScheme.primary,
+            ),
+            title: const Text('Resolución de Vídeos'),
+            subtitle: const Text('Configurar calidad de grabación de vídeo'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showVideoResolutionDialog(context, ref),
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(
+              Icons.sync,
+              color: theme.colorScheme.primary,
+            ),
+            title: const Text('Sincronización'),
+            subtitle: const Text('Conectar con aplicación de escritorio'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).pushNamed('/sync');
+            },
           ),
           const Divider(height: 32),
 
@@ -429,6 +454,79 @@ class SettingsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Resolución establecida a ${result}p'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showVideoResolutionDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final settingsService = ref.read(appSettingsServiceProvider);
+    final currentResolution = await settingsService.getVideoResolution();
+
+    if (!context.mounted) return;
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Resolución de Vídeos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Selecciona la resolución para la grabación de vídeo:',
+            ),
+            const SizedBox(height: 16),
+            _buildResolutionOption(
+              context,
+              resolution: 480,
+              label: '480p',
+              description: 'Calidad básica, archivos muy pequeños',
+              currentResolution: currentResolution,
+            ),
+            _buildResolutionOption(
+              context,
+              resolution: 720,
+              label: '720p HD',
+              description: 'Buena calidad, archivos pequeños',
+              currentResolution: currentResolution,
+            ),
+            _buildResolutionOption(
+              context,
+              resolution: 1080,
+              label: '1080p Full HD',
+              description: 'Alta calidad, archivos medianos',
+              currentResolution: currentResolution,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Una resolución menor permite grabar vídeos más largos ocupando menos espacio.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      await settingsService.setVideoResolution(result);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Resolución de vídeo establecida a ${result}p'),
             backgroundColor: Colors.green,
           ),
         );

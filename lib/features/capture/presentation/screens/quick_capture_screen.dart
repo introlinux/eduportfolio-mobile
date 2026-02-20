@@ -1,20 +1,24 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show compute;
+import 'package:eduportfolio/core/constants/app_constants.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:eduportfolio/core/providers/core_providers.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_recognition_providers.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/features/capture/presentation/providers/capture_providers.dart';
 import 'package:eduportfolio/features/courses/presentation/providers/course_providers.dart';
 import 'package:eduportfolio/features/home/presentation/providers/home_providers.dart';
-import 'package:eduportfolio/features/settings/presentation/providers/settings_providers.dart';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 
 /// Quick capture screen with active camera for fast evidence capture
 class QuickCaptureScreen extends ConsumerStatefulWidget {
@@ -50,9 +54,16 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   // Live recognition state
   String? _liveRecognitionName;
   int? _liveRecognizedStudentId;
+  double _lastRecognitionConfidence = 0.0;
+  DateTime? _lastRecognitionTime;
   bool _isProcessingFrame = false;
   DateTime? _lastProcessTime;
   bool _isStreamActive = false;
+
+  // Recognition stability thresholds
+  static const double _activationThreshold = 0.70; // Threshold to START recognizing
+  static const double _deactivationThreshold = 0.65; // Threshold to STOP recognizing (hysteresis)
+  static const Duration _recognitionMemoryDuration = Duration(seconds: 2); // Keep recognition for 2s
 
   // Modo encuadre intencionado (long-press)
   bool _isLongPressActive = false;
@@ -62,12 +73,27 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   // Selección manual de estudiante
   bool _isManualSelectionActive = false;
 
-  // Debug: cropped face image for visualization
-  img.Image? _debugCroppedFace;
-  Uint8List? _debugCroppedFaceBytes;
-  
   // Orientation state
   Orientation _currentOrientation = Orientation.portrait;
+
+  // Video recording state
+  bool _cameraReinitializedForVideo = false;
+  bool _isRecording = false;
+  Duration _recordingDuration = Duration.zero;
+  Timer? _recordingTimer;
+  String? _recordingStudentName;
+  int? _recordingStudentId;
+
+  // Audio recording state
+  bool _isAudioRecording = false;
+  Duration _audioRecordingDuration = Duration.zero;
+  Timer? _audioRecordingTimer;
+  String? _audioRecordingStudentName;
+  int? _audioRecordingStudentId;
+  String? _audioCoverImagePath;
+  AudioRecorder? _audioRecorder;
+  List<double> _audioWaveform = [];
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
 
   @override
   void initState() {
@@ -115,10 +141,11 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
       final resolutionPreset = await settingsService.getResolutionPreset();
 
       // Initialize camera controller
+      // enableAudio: true needed for video recording with sound
       _cameraController = CameraController(
         camera,
         resolutionPreset,
-        enableAudio: false,
+        enableAudio: true,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
@@ -157,7 +184,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         }
 
         // Skip if already processing or capturing
-        if (_isProcessingFrame || _isCapturing || _isLongPressActive || _isManualSelectionActive) {
+        if (_isProcessingFrame || _isCapturing || _isLongPressActive || _isManualSelectionActive || _isAudioRecording) {
           return;
         }
 
@@ -224,13 +251,13 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             await _performLiveFaceRecognition(resizedImage);
           }
         } catch (e) {
-          debugPrint('Live recognition error: $e');
+          Logger.error('Live recognition error', e);
         } finally {
           _isProcessingFrame = false;
         }
       });
     } catch (e) {
-      debugPrint('Failed to start image stream: $e');
+      Logger.error('Failed to start image stream', e);
       _isStreamActive = false;
     }
   }
@@ -241,7 +268,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         _cameraController!.stopImageStream();
         _isStreamActive = false;
       } catch (e) {
-        debugPrint('Failed to stop image stream: $e');
+        Logger.error('Failed to stop image stream', e);
       }
     }
   }
@@ -333,31 +360,75 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         image,
         studentsWithFaces,
       );
-      
-      // Update live recognition state
-      // Debug overlay disabled for performance
-      /*
-      if (mounted) {
-        // Convert debug image to bytes for display if available
-        if (result != null && result.debugCroppedFace != null) {
-          try {
-            final pngBytes = img.encodePng(result.debugCroppedFace!);
-            _debugCroppedFaceBytes = Uint8List.fromList(pngBytes);
-          } catch (e) {
-            debugPrint('Error encoding debug face: $e');
-          }
-        }
-      }
-      */
 
-        if (mounted && !_isManualSelectionActive) {
-          setState(() {
+      // Apply hysteresis + temporal memory for stable recognition
+      if (mounted && !_isManualSelectionActive) {
+        final now = DateTime.now();
+
+        setState(() {
           if (result != null && result.student != null) {
-            _liveRecognitionName = result.student!.name;
-            _liveRecognizedStudentId = result.student!.id;
+            final newConfidence = result.confidence;
+            final newStudentId = result.student!.id;
+
+            // Check if this is a new recognition or same student
+            final isSameStudent = _liveRecognizedStudentId == newStudentId;
+
+            if (isSameStudent) {
+              // Same student: apply deactivation threshold (hysteresis)
+              if (newConfidence >= _deactivationThreshold) {
+                // Still above deactivation threshold, update
+                _liveRecognitionName = result.student!.name;
+                _liveRecognizedStudentId = newStudentId;
+                _lastRecognitionConfidence = newConfidence;
+                _lastRecognitionTime = now;
+              } else {
+                // Below deactivation threshold, check temporal memory
+                if (_lastRecognitionTime != null &&
+                    now.difference(_lastRecognitionTime!) < _recognitionMemoryDuration) {
+                  // Within memory window, keep recognition
+                  // (name and ID already set, just don't clear)
+                } else {
+                  // Memory expired, clear recognition
+                  _liveRecognitionName = null;
+                  _liveRecognizedStudentId = null;
+                  _lastRecognitionConfidence = 0.0;
+                  _lastRecognitionTime = null;
+                }
+              }
+            } else {
+              // Different student: apply activation threshold
+              if (newConfidence >= _activationThreshold) {
+                // New student recognized with high confidence
+                _liveRecognitionName = result.student!.name;
+                _liveRecognizedStudentId = newStudentId;
+                _lastRecognitionConfidence = newConfidence;
+                _lastRecognitionTime = now;
+              } else if (_lastRecognitionTime != null &&
+                         now.difference(_lastRecognitionTime!) < _recognitionMemoryDuration) {
+                // Keep current recognition (temporal memory)
+                // (name and ID already set, just don't clear)
+              } else {
+                // No valid recognition, clear
+                _liveRecognitionName = null;
+                _liveRecognizedStudentId = null;
+                _lastRecognitionConfidence = 0.0;
+                _lastRecognitionTime = null;
+              }
+            }
           } else {
-            _liveRecognitionName = null;
-            _liveRecognizedStudentId = null;
+            // No face detected or recognition failed
+            // Check temporal memory before clearing
+            if (_lastRecognitionTime != null &&
+                now.difference(_lastRecognitionTime!) < _recognitionMemoryDuration) {
+              // Keep current recognition (temporal memory)
+              // (name and ID already set, just don't clear)
+            } else {
+              // Memory expired or never existed, clear
+              _liveRecognitionName = null;
+              _liveRecognizedStudentId = null;
+              _lastRecognitionConfidence = 0.0;
+              _lastRecognitionTime = null;
+            }
           }
         });
       }
@@ -462,7 +533,7 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     } catch (e) {
       // Recognition failed, but don't block capture
       // Just log and continue without recognition
-      debugPrint('Face recognition error: $e');
+      Logger.error('Face recognition error', e);
     }
   }
 
@@ -508,6 +579,465 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         );
       }
     }
+  }
+
+  // =========================================================================
+  // VIDEO RECORDING
+  // =========================================================================
+
+  Future<void> _startVideoRecording() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing ||
+        _isRecording) {
+      return;
+    }
+
+    // Stop live recognition during recording (student already identified)
+    _stopLiveRecognition();
+
+    try {
+      // Check if we need to reinitialize camera for video resolution
+      final settingsService = ref.read(appSettingsServiceProvider);
+      final videoResolutionPreset = await settingsService.getVideoResolutionPreset();
+      final imageResolutionPreset = await settingsService.getResolutionPreset();
+
+      if (videoResolutionPreset != imageResolutionPreset) {
+        // Resolutions differ: reinitialize camera with video preset
+        // Null out controller inside setState so the UI immediately stops
+        // calling buildPreview() on the old controller before dispose runs
+        final oldController = _cameraController!;
+        setState(() {
+          _cameraController = null;
+          _isInitializing = true;
+        });
+        await oldController.dispose();
+
+        final camera = _availableCameras[_currentCameraIndex];
+        _cameraController = CameraController(
+          camera,
+          videoResolutionPreset,
+          enableAudio: true,
+          imageFormatGroup: ImageFormatGroup.jpeg,
+        );
+        await _cameraController!.initialize();
+        if (mounted) setState(() => _isInitializing = false);
+        _cameraReinitializedForVideo = true;
+      } else {
+        _cameraReinitializedForVideo = false;
+      }
+
+      await _cameraController!.startVideoRecording();
+
+      setState(() {
+        _isRecording = true;
+        _recordingDuration = Duration.zero;
+        // Freeze the student identity for the recording
+        _recordingStudentName = _isManualSelectionActive
+            ? _liveRecognitionName
+            : (_liveRecognitionName ?? _frozenStudentName);
+        _recordingStudentId = _isManualSelectionActive
+            ? _liveRecognizedStudentId
+            : (_liveRecognizedStudentId ?? _frozenStudentId);
+      });
+
+      // Start duration timer
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() {
+            _recordingDuration += const Duration(seconds: 1);
+          });
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al iniciar grabación: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopVideoRecording() async {
+    if (_cameraController == null || !_isRecording) return;
+
+    // Stop timer
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+
+    try {
+      final videoFile = await _cameraController!.stopVideoRecording();
+
+      final durationMs = _recordingDuration.inMilliseconds;
+      final studentId = _recordingStudentId;
+      final studentName = _recordingStudentName;
+
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = Duration.zero;
+      });
+
+      // Save the video evidence
+      await _saveVideoEvidence(
+        videoFile.path,
+        durationMs: durationMs,
+        studentId: studentId,
+        studentName: studentName,
+      );
+
+      // Reinitialize camera with photo resolution if it was changed for video
+      if (_cameraReinitializedForVideo) {
+        _cameraReinitializedForVideo = false;
+        final oldController = _cameraController!;
+        setState(() {
+          _cameraController = null;
+          _isInitializing = true;
+        });
+        await oldController.dispose();
+
+        final settingsService = ref.read(appSettingsServiceProvider);
+        final imageResolutionPreset = await settingsService.getResolutionPreset();
+        final camera = _availableCameras[_currentCameraIndex];
+
+        _cameraController = CameraController(
+          camera,
+          imageResolutionPreset,
+          enableAudio: true,
+          imageFormatGroup: ImageFormatGroup.jpeg,
+        );
+        await _cameraController!.initialize();
+        if (mounted) setState(() => _isInitializing = false);
+      }
+
+      // Restart live recognition
+      _startLiveRecognition();
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = Duration.zero;
+      });
+
+      // Reinitialize camera with photo resolution even on error
+      if (_cameraReinitializedForVideo) {
+        _cameraReinitializedForVideo = false;
+        try {
+          final oldController = _cameraController;
+          if (mounted) {
+            setState(() {
+              _cameraController = null;
+              _isInitializing = true;
+            });
+          }
+          await oldController?.dispose();
+
+          final settingsService = ref.read(appSettingsServiceProvider);
+          final imageResolutionPreset = await settingsService.getResolutionPreset();
+          final camera = _availableCameras[_currentCameraIndex];
+
+          _cameraController = CameraController(
+            camera,
+            imageResolutionPreset,
+            enableAudio: true,
+            imageFormatGroup: ImageFormatGroup.jpeg,
+          );
+          await _cameraController!.initialize();
+          if (mounted) setState(() => _isInitializing = false);
+        } catch (_) {
+          // If restoration fails, full reinit
+          await _initializeCamera();
+          return;
+        }
+      }
+
+      // Restart live recognition even on error
+      _startLiveRecognition();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al detener grabación: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveVideoEvidence(
+    String videoPath, {
+    required int durationMs,
+    int? studentId,
+    String? studentName,
+  }) async {
+    try {
+      final saveVideoUseCase = ref.read(saveVideoEvidenceUseCaseProvider);
+      final activeCourse = await ref.read(activeCourseProvider.future);
+
+      await saveVideoUseCase(
+        tempVideoPath: videoPath,
+        subjectId: widget.subjectId,
+        durationMs: durationMs,
+        studentId: studentId,
+        courseId: activeCourse?.id,
+      );
+
+      // Invalidate home providers to refresh counts immediately
+      ref.invalidate(pendingEvidencesCountProvider);
+      ref.invalidate(storageInfoProvider);
+
+      if (mounted) {
+        setState(() => _capturedCount++);
+
+        final message = studentId != null && studentName != null
+            ? '🎥 Vídeo guardado - $studentName'
+            : '🎥 Vídeo guardado';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.green,
+            duration: const Duration(milliseconds: 2000),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar vídeo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // =========================================================================
+  // AUDIO RECORDING
+  // =========================================================================
+
+  Future<void> _startAudioRecording() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing ||
+        _isRecording ||
+        _isAudioRecording) {
+      return;
+    }
+
+    // Request microphone permission
+    final micStatus = await Permission.microphone.request();
+    if (!micStatus.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permiso de micrófono denegado'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Stop live recognition (student already identified)
+    _stopLiveRecognition();
+
+    try {
+      // Capture cover photo silently
+      final coverImage = await _cameraController!.takePicture();
+      _audioCoverImagePath = coverImage.path;
+
+      // Initialize audio recorder
+      _audioRecorder = AudioRecorder();
+
+      // Configure recording: OPUS at 160kbps, 48kHz
+      final tempDir = await getTemporaryDirectory();
+      final tempPath =
+          '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.opus';
+
+      await _audioRecorder!.start(
+        const RecordConfig(
+          encoder: AudioEncoder.opus,
+          bitRate: AppConstants.audioBitrate,
+          sampleRate: 48000,
+          numChannels: 1,
+        ),
+        path: tempPath,
+      );
+
+      setState(() {
+        _isAudioRecording = true;
+        _audioRecordingDuration = Duration.zero;
+        _audioWaveform = [];
+        // Freeze student identity
+        _audioRecordingStudentName = _isManualSelectionActive
+            ? _liveRecognitionName
+            : (_liveRecognitionName ?? _frozenStudentName);
+        _audioRecordingStudentId = _isManualSelectionActive
+            ? _liveRecognizedStudentId
+            : (_liveRecognizedStudentId ?? _frozenStudentId);
+      });
+
+      // Start duration timer
+      _audioRecordingTimer =
+          Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() {
+            _audioRecordingDuration += const Duration(seconds: 1);
+          });
+        }
+      });
+
+      // Start amplitude stream for waveform
+      _amplitudeSubscription = _audioRecorder!
+          .onAmplitudeChanged(const Duration(milliseconds: 100))
+          .listen((amplitude) {
+        if (mounted) {
+          setState(() {
+            // Normalize amplitude from dBFS (-160..0) to 0.0..1.0
+            final normalized =
+                ((amplitude.current + 60) / 60).clamp(0.0, 1.0);
+            _audioWaveform.add(normalized);
+            // Keep max 300 samples (30 seconds at 100ms)
+            if (_audioWaveform.length > 300) {
+              _audioWaveform.removeAt(0);
+            }
+          });
+        }
+      });
+    } catch (e) {
+      // Restart live recognition on error
+      _startLiveRecognition();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al iniciar grabaci\u00f3n de audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopAudioRecording() async {
+    if (_audioRecorder == null || !_isAudioRecording) return;
+
+    // Stop timer and amplitude stream
+    _audioRecordingTimer?.cancel();
+    _audioRecordingTimer = null;
+    _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
+
+    try {
+      final audioPath = await _audioRecorder!.stop();
+      await _audioRecorder!.dispose();
+      _audioRecorder = null;
+
+      final durationMs = _audioRecordingDuration.inMilliseconds;
+      final studentId = _audioRecordingStudentId;
+      final studentName = _audioRecordingStudentName;
+      final coverPath = _audioCoverImagePath;
+
+      setState(() {
+        _isAudioRecording = false;
+        _audioRecordingDuration = Duration.zero;
+        _audioWaveform = [];
+      });
+
+      // Save the audio evidence
+      if (audioPath != null && coverPath != null) {
+        await _saveAudioEvidence(
+          audioPath,
+          coverImagePath: coverPath,
+          durationMs: durationMs,
+          studentId: studentId,
+          studentName: studentName,
+        );
+      }
+
+      // Restart live recognition
+      _startLiveRecognition();
+    } catch (e) {
+      setState(() {
+        _isAudioRecording = false;
+        _audioRecordingDuration = Duration.zero;
+        _audioWaveform = [];
+      });
+
+      // Restart live recognition even on error
+      _startLiveRecognition();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al detener grabaci\u00f3n de audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveAudioEvidence(
+    String audioPath, {
+    required String coverImagePath,
+    required int durationMs,
+    int? studentId,
+    String? studentName,
+  }) async {
+    try {
+      final saveAudioUseCase = ref.read(saveAudioEvidenceUseCaseProvider);
+      final activeCourse = await ref.read(activeCourseProvider.future);
+
+      await saveAudioUseCase(
+        tempAudioPath: audioPath,
+        coverImagePath: coverImagePath,
+        subjectId: widget.subjectId,
+        durationMs: durationMs,
+        studentId: studentId,
+        courseId: activeCourse?.id,
+      );
+
+      // Invalidate home providers to refresh counts immediately
+      ref.invalidate(pendingEvidencesCountProvider);
+      ref.invalidate(storageInfoProvider);
+
+      if (mounted) {
+        setState(() => _capturedCount++);
+
+        final message = studentId != null && studentName != null
+            ? '\ud83c\udfa4 Audio guardado - $studentName'
+            : '\ud83c\udfa4 Audio guardado';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.green,
+            duration: const Duration(milliseconds: 2000),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Format a Duration as mm:ss
+  String _formatRecordingDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   void _cancelPreview() {
@@ -687,6 +1217,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         _isManualSelectionActive = false;
         _liveRecognitionName = null;
         _liveRecognizedStudentId = null;
+        _lastRecognitionConfidence = 0.0;
+        _lastRecognitionTime = null;
       });
     } else {
       // Student manually selected
@@ -725,6 +1257,10 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
   @override
   void dispose() {
     _stopLiveRecognition();
+    _recordingTimer?.cancel();
+    _audioRecordingTimer?.cancel();
+    _amplitudeSubscription?.cancel();
+    _audioRecorder?.dispose();
     _cameraController?.dispose();
 
     // Invalidate providers when leaving to refresh home counters
@@ -766,47 +1302,61 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
               _cameraController!.value.isInitialized)
             _buildOverlayUI(theme),
 
-          /*
-          // DEBUG: Show what the recognizer sees
-          if (_debugCroppedFaceBytes != null && !_isCapturing)
+          // REC indicator positioned bottom-right (over video button)
+          if (_isRecording)
             Positioned(
-              left: 20,
-              bottom: 150,
+              right: 20,
+              bottom: 140,
               child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  color: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Image.memory(
-                        _debugCroppedFaceBytes!,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
                     ),
-                    Container(
-                      color: Colors.red,
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(2),
-                      child: const Text(
-                        'DEBUG INPUT',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Blinking red dot
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.3, end: 1.0),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: value),
+                          ),
+                        );
+                      },
+                      // Use a key to force restart animation loop
+                      key: ValueKey(_recordingDuration.inSeconds % 2 == 0),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'REC  ${_formatRecordingDuration(_recordingDuration)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          */
         ],
       ),
     );
@@ -816,7 +1366,8 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Get camera preview size
-        final previewSize = _cameraController!.value.previewSize!;
+        final previewSize = _cameraController!.value.previewSize;
+        if (previewSize == null) return const SizedBox.shrink();
 
         // Calculate aspect ratios
         // Camera preview is typically in landscape (width > height)
@@ -933,8 +1484,184 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             ),
           ),
 
-          // Banner de estudiante: reconocimiento vivo o fijado (long-press)
-          if (!_isCapturing && (_isLongPressActive || _liveRecognitionName != null))
+
+          // Audio REC indicator (while recording audio)
+          if (_isAudioRecording)
+            Container(
+              margin: const EdgeInsets.only(top: 60),
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Blinking blue dot
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.3, end: 1.0),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: value),
+                          ),
+                        );
+                      },
+                      key: ValueKey(_audioRecordingDuration.inSeconds % 2 == 0),
+                    ),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.mic, color: Colors.white, size: 20),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatRecordingDuration(_audioRecordingDuration),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Waveform overlay during audio recording
+          if (_isAudioRecording && _audioCoverImagePath != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              height: 120,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: [
+                    // Cover photo as background
+                    Positioned.fill(
+                      child: Image.file(
+                        File(_audioCoverImagePath!),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    // Dark overlay
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    // Waveform painter
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _WaveformPainter(
+                          amplitudes: _audioWaveform,
+                          color: Colors.blue.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Banner de estudiante: reconocimiento vivo, fijado (long-press), o durante grabación
+          if (_isRecording && _recordingStudentName != null)
+            Container(
+              margin: const EdgeInsets.only(top: 60),
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.videocam,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _recordingStudentName!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (_isAudioRecording && _audioRecordingStudentName != null)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.mic,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _audioRecordingStudentName!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (!_isCapturing && !_isRecording && !_isAudioRecording && (_isLongPressActive || _liveRecognitionName != null))
             Container(
               margin: const EdgeInsets.only(top: 80),
               alignment: Alignment.topCenter,
@@ -993,7 +1720,6 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             ),
 
 
-
           const Spacer(),
 
           // Bottom controls
@@ -1012,38 +1738,121 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Capture button (tap = captura rápida, long-press = encuadre intencionado)
-                GestureDetector(
-                  onTap: _isCapturing ? null : _captureImage,
-                  onLongPressStart: _isCapturing ? null : (details) => _onLongPressStart(),
-                  onLongPressEnd: (details) => _onLongPressEnd(),
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _isLongPressActive ? Colors.blue : Colors.white,
-                        width: _isLongPressActive ? 6 : 4,
-                      ),
-                      color: _isCapturing
-                          ? Colors.grey
-                          : _isLongPressActive
-                              ? Colors.blue.withValues(alpha: 0.4)
-                              : Colors.white.withValues(alpha: 0.3),
-                    ),
-                    child: _isCapturing
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.camera_alt,
-                            size: 40,
-                            color: Colors.white,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Audio capture button
+                    GestureDetector(
+                      onTap: (_isCapturing || _isRecording || _isLongPressActive)
+                          ? null
+                          : (_isAudioRecording ? _stopAudioRecording : _startAudioRecording),
+                      child: Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _isAudioRecording ? Colors.blue : Colors.white,
+                            width: _isAudioRecording ? 6 : 3,
                           ),
-                  ),
+                          color: _isAudioRecording
+                              ? Colors.blue.withValues(alpha: 0.4)
+                              : (_isCapturing || _isRecording || _isLongPressActive)
+                                  ? Colors.grey.withValues(alpha: 0.3)
+                                  : Colors.white.withValues(alpha: 0.3),
+                        ),
+                        child: _isAudioRecording
+                            ? const Icon(
+                                Icons.stop,
+                                size: 28,
+                                color: Colors.white,
+                              )
+                            : Icon(
+                                Icons.mic,
+                                size: 28,
+                                color: (_isCapturing || _isRecording || _isLongPressActive)
+                                    ? Colors.white.withValues(alpha: 0.4)
+                                    : Colors.white,
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 24),
+
+                    // Photo capture button (tap = captura rápida, long-press = encuadre intencionado)
+                    GestureDetector(
+                      onTap: (_isCapturing || _isRecording || _isAudioRecording) ? null : _captureImage,
+                      onLongPressStart: (_isCapturing || _isRecording || _isAudioRecording) ? null : (details) => _onLongPressStart(),
+                      onLongPressEnd: (details) => _onLongPressEnd(),
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _isLongPressActive ? Colors.blue : Colors.white,
+                            width: _isLongPressActive ? 6 : 4,
+                          ),
+                          color: (_isCapturing || _isRecording || _isAudioRecording)
+                              ? Colors.grey.withValues(alpha: 0.3)
+                              : _isLongPressActive
+                                  ? Colors.blue.withValues(alpha: 0.4)
+                                  : Colors.white.withValues(alpha: 0.3),
+                        ),
+                        child: _isCapturing
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                Icons.camera_alt,
+                                size: 36,
+                                color: (_isRecording || _isAudioRecording)
+                                    ? Colors.white.withValues(alpha: 0.4)
+                                    : Colors.white,
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 24),
+
+                    // Video capture button
+                    GestureDetector(
+                      onTap: (_isCapturing || _isLongPressActive || _isAudioRecording)
+                          ? null
+                          : (_isRecording ? _stopVideoRecording : _startVideoRecording),
+                      child: Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _isRecording ? Colors.red : Colors.white,
+                            width: _isRecording ? 6 : 3,
+                          ),
+                          color: _isRecording
+                              ? Colors.red.withValues(alpha: 0.4)
+                              : (_isCapturing || _isLongPressActive || _isAudioRecording)
+                                  ? Colors.grey.withValues(alpha: 0.3)
+                                  : Colors.white.withValues(alpha: 0.3),
+                        ),
+                        child: _isRecording
+                            ? const Icon(
+                                Icons.stop,
+                                size: 28,
+                                color: Colors.white,
+                              )
+                            : Icon(
+                                Icons.videocam,
+                                size: 28,
+                                color: (_isCapturing || _isLongPressActive || _isAudioRecording)
+                                    ? Colors.white.withValues(alpha: 0.4)
+                                    : Colors.white,
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
                 if (_isLongPressActive) ...[
                   const SizedBox(height: 16),
@@ -1054,6 +1863,30 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+                if (_isRecording) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'PULSAR STOP PARA FINALIZAR',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+                if (_isAudioRecording) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'GRABANDO AUDIO - PULSAR STOP',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ],
@@ -1234,5 +2067,57 @@ class _QuickCaptureScreenState extends ConsumerState<QuickCaptureScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Custom painter for audio waveform visualization
+class _WaveformPainter extends CustomPainter {
+  final List<double> amplitudes;
+  final Color color;
+
+  _WaveformPainter({
+    required this.amplitudes,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (amplitudes.isEmpty) return;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // Max visible bars
+    const maxBars = 100;
+    final visibleAmplitudes = amplitudes.length > maxBars
+        ? amplitudes.sublist(amplitudes.length - maxBars)
+        : amplitudes;
+
+    final barWidth = size.width / maxBars;
+    final gap = barWidth * 0.2;
+    final effectiveBarWidth = barWidth - gap;
+
+    for (int i = 0; i < visibleAmplitudes.length; i++) {
+      final amplitude = visibleAmplitudes[i];
+      final barHeight = math.max(2.0, amplitude * size.height * 0.9);
+
+      final x = i * barWidth + gap / 2;
+      final y = (size.height - barHeight) / 2;
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, effectiveBarWidth, barHeight),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter oldDelegate) {
+    return oldDelegate.amplitudes.length != amplitudes.length ||
+        oldDelegate.amplitudes.lastOrNull != amplitudes.lastOrNull;
   }
 }

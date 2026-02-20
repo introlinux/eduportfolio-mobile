@@ -1,5 +1,7 @@
 import 'package:eduportfolio/core/providers/core_providers.dart';
+import 'package:eduportfolio/features/capture/domain/usecases/save_audio_evidence_usecase.dart';
 import 'package:eduportfolio/features/capture/domain/usecases/save_evidence_usecase.dart';
+import 'package:eduportfolio/features/capture/domain/usecases/save_video_evidence_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
@@ -19,6 +21,18 @@ final saveEvidenceUseCaseProvider = Provider<SaveEvidenceUseCase>((ref) {
   );
 });
 
+/// Provider for SaveVideoEvidenceUseCase
+final saveVideoEvidenceUseCaseProvider = Provider<SaveVideoEvidenceUseCase>((ref) {
+  final evidenceRepository = ref.watch(evidenceRepositoryProvider);
+  final subjectRepository = ref.watch(subjectRepositoryProvider);
+  final studentRepository = ref.watch(studentRepositoryProvider);
+  return SaveVideoEvidenceUseCase(
+    evidenceRepository,
+    subjectRepository,
+    studentRepository,
+  );
+});
+
 // ============================================================================
 // STATE PROVIDERS
 // ============================================================================
@@ -31,3 +45,28 @@ final selectedSubjectIdProvider = StateProvider<int?>((ref) => null);
 
 /// Provider for loading state during save
 final isSavingProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for recording state
+final isRecordingProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for recording duration
+final recordingDurationProvider = StateProvider<Duration>((ref) => Duration.zero);
+
+/// Provider for SaveAudioEvidenceUseCase
+final saveAudioEvidenceUseCaseProvider = Provider<SaveAudioEvidenceUseCase>((ref) {
+  final evidenceRepository = ref.watch(evidenceRepositoryProvider);
+  final subjectRepository = ref.watch(subjectRepositoryProvider);
+  final studentRepository = ref.watch(studentRepositoryProvider);
+  return SaveAudioEvidenceUseCase(
+    evidenceRepository,
+    subjectRepository,
+    studentRepository,
+  );
+});
+
+/// Provider for audio recording state
+final isAudioRecordingProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for audio recording duration
+final audioRecordingDurationProvider = StateProvider<Duration>((ref) => Duration.zero);
+

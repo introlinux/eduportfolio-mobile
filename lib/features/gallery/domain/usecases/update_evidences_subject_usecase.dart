@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Use case to update subject for multiple evidences
 class UpdateEvidencesSubjectUseCase {
@@ -21,7 +22,7 @@ class UpdateEvidencesSubjectUseCase {
         }
       } catch (e) {
         // Log error but continue with other evidences
-        print('Error updating evidence $evidenceId: $e');
+        Logger.error('Error updating evidence $evidenceId', e);
       }
     }
 

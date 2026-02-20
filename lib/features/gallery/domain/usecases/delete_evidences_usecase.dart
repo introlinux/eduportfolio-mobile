@@ -1,4 +1,5 @@
 import 'package:eduportfolio/core/domain/repositories/evidence_repository.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 
 /// Use case to delete multiple evidences
 class DeleteEvidencesUseCase {
@@ -17,7 +18,7 @@ class DeleteEvidencesUseCase {
         successCount++;
       } catch (e) {
         // Log error but continue with other evidences
-        print('Error deleting evidence $evidenceId: $e');
+        Logger.error('Error deleting evidence $evidenceId', e);
       }
     }
 

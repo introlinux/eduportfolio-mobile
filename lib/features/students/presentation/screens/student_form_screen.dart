@@ -133,10 +133,19 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Check if error is due to duplicate name
+        String errorMessage = 'Error al guardar';
+        if (e.toString().toLowerCase().contains('unique')) {
+          errorMessage = 'Ya existe un estudiante con ese nombre';
+        } else {
+          errorMessage = 'Error al guardar: $e';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }

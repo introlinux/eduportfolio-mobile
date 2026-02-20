@@ -7,7 +7,13 @@ import 'package:eduportfolio/core/domain/entities/student.dart';
 /// Extends Student entity with database serialization.
 class StudentModel extends Student {
   const StudentModel({
-    required super.courseId, required super.name, required super.createdAt, required super.updatedAt, super.id,
+    required super.courseId,
+    required super.name,
+    super.enrollmentDate,
+    super.isActive = true,
+    required super.createdAt,
+    required super.updatedAt,
+    super.id,
     super.faceEmbeddings,
   });
 
@@ -18,6 +24,8 @@ class StudentModel extends Student {
       courseId: entity.courseId,
       name: entity.name,
       faceEmbeddings: entity.faceEmbeddings,
+      enrollmentDate: entity.enrollmentDate,
+      isActive: entity.isActive,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     );
@@ -30,6 +38,10 @@ class StudentModel extends Student {
       courseId: map['course_id'] as int,
       name: map['name'] as String,
       faceEmbeddings: map['face_embeddings'] as Uint8List?,
+      enrollmentDate: map['enrollment_date'] != null
+          ? DateTime.parse(map['enrollment_date'] as String)
+          : null,
+      isActive: (map['is_active'] as int?) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
@@ -42,6 +54,9 @@ class StudentModel extends Student {
       'course_id': courseId,
       'name': name,
       if (faceEmbeddings != null) 'face_embeddings': faceEmbeddings,
+      if (enrollmentDate != null)
+        'enrollment_date': enrollmentDate!.toIso8601String(),
+      'is_active': isActive ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -54,6 +69,8 @@ class StudentModel extends Student {
       courseId: courseId,
       name: name,
       faceEmbeddings: faceEmbeddings,
+      enrollmentDate: enrollmentDate,
+      isActive: isActive,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

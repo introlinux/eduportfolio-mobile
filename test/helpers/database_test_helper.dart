@@ -38,6 +38,7 @@ Future<Database> createTestDatabase() async {
             name TEXT NOT NULL,
             course_id INTEGER NOT NULL,
             face_embeddings BLOB,
+            is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE

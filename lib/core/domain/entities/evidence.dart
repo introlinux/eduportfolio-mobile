@@ -62,9 +62,16 @@ class Evidence {
   final bool isReviewed;
   final String? notes;
   final DateTime createdAt;
+  final double? confidence;
+  final String? method;
 
   const Evidence({
-    required this.subjectId, required this.type, required this.filePath, required this.captureDate, required this.createdAt, this.id,
+    required this.subjectId,
+    required this.type,
+    required this.filePath,
+    required this.captureDate,
+    required this.createdAt,
+    this.id,
     this.studentId,
     this.courseId,
     this.thumbnailPath,
@@ -72,6 +79,8 @@ class Evidence {
     this.duration,
     this.isReviewed = true,
     this.notes,
+    this.confidence,
+    this.method,
   });
 
   /// Create a copy with updated fields
@@ -92,6 +101,8 @@ class Evidence {
     bool? isReviewed,
     String? notes,
     DateTime? createdAt,
+    double? confidence,
+    String? method,
   }) {
     return Evidence(
       id: id ?? this.id,
@@ -107,6 +118,8 @@ class Evidence {
       isReviewed: isReviewed ?? this.isReviewed,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
+      confidence: confidence ?? this.confidence,
+      method: method ?? this.method,
     );
   }
 
@@ -141,7 +154,9 @@ class Evidence {
         other.captureDate == captureDate &&
         other.isReviewed == isReviewed &&
         other.notes == notes &&
-        other.createdAt == createdAt;
+        other.createdAt == createdAt &&
+        other.confidence == confidence &&
+        other.method == method;
   }
 
   @override
@@ -158,11 +173,13 @@ class Evidence {
         captureDate.hashCode ^
         isReviewed.hashCode ^
         notes.hashCode ^
-        createdAt.hashCode;
+        createdAt.hashCode ^
+        confidence.hashCode ^
+        method.hashCode;
   }
 
   @override
   String toString() {
-    return 'Evidence(id: $id, studentId: $studentId, courseId: $courseId, subjectId: $subjectId, type: $type, filePath: $filePath, captureDate: $captureDate, isReviewed: $isReviewed, createdAt: $createdAt)';
+    return 'Evidence(id: $id, studentId: $studentId, courseId: $courseId, subjectId: $subjectId, type: $type, filePath: $filePath, captureDate: $captureDate, isReviewed: $isReviewed, confidence: $confidence, method: $method, createdAt: $createdAt)';
   }
 }

@@ -172,10 +172,15 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
                 // Get subject for this evidence
                 final subject = subjectsAsync.whenOrNull(
-                  data: (subjects) => subjects.firstWhere(
-                    (s) => s.id == evidence.subjectId,
-                    orElse: () => subjects.first,
-                  ),
+                  data: (subjects) {
+                    try {
+                      return subjects.firstWhere(
+                        (s) => s.id == evidence.subjectId,
+                      );
+                    } catch (_) {
+                      return null;
+                    }
+                  },
                 );
 
                 // Get student for this evidence
@@ -283,6 +288,8 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             onSelected: (subjectId) {
               ref.read(selectedSubjectFilterProvider.notifier).state =
                   subjectId;
+              // Force refresh of filtered evidences
+              ref.invalidate(filteredEvidencesProvider);
             },
             itemBuilder: (context) => [
               PopupMenuItem<int?>(
@@ -339,6 +346,8 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             onSelected: (studentId) {
               ref.read(selectedStudentFilterProvider.notifier).state =
                   studentId;
+              // Force refresh of filtered evidences
+              ref.invalidate(filteredEvidencesProvider);
             },
             itemBuilder: (context) => [
               PopupMenuItem<int?>(
@@ -487,16 +496,28 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
     if (selectedEvidences.isEmpty) return;
 
-    // Convert to Files
-    final files = selectedEvidences.map((e) => File(e.filePath)).toList();
+    // Convert to Files and thumbnails
+    final files = <File>[];
+    final thumbnailPaths = <String, String>{};
+    
+    for (final e in selectedEvidences) {
+      files.add(File(e.filePath));
+      if (e.thumbnailPath != null) {
+        thumbnailPaths[e.filePath] = e.thumbnailPath!;
+      }
+    }
+
     final privacyService = ref.read(privacyServiceProvider);
+    final videoPrivacyService = ref.read(media3VideoPrivacyServiceProvider);
 
     // Show preview dialog
     await showDialog(
       context: context,
       builder: (context) => SharePreviewDialog(
         originalFiles: files,
+        thumbnailPaths: thumbnailPaths,
         privacyService: privacyService,
+        videoPrivacyService: videoPrivacyService,
       ),
     );
     

@@ -1,0 +1,274 @@
+import 'dart:io';
+import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
+import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:image/image.dart' as img;
+
+/// Service to handle privacy protection for videos using Media3 Transformer.
+///
+/// This service uses Android's Media3 library (via Platform Channel) to add
+/// emoji overlays over detected faces in videos, providing a native, hardware-
+/// accelerated solution that's faster and lighter than FFmpeg.
+class Media3VideoPrivacyService {
+  static const _channel = MethodChannel('com.eduportfolio/media3');
+  final FaceDetectorService _faceDetectorService;
+
+  Media3VideoPrivacyService(this._faceDetectorService);
+
+  /// Process a video for sharing, optionally applying privacy protection (emoji overlays).
+  ///
+  /// Pipeline:
+  ///   1. Extract frames from video at intervals
+  ///   2. Detect faces in each frame using BlazeFace
+  ///   3. Map face positions to normalized coordinates with timestamps
+  ///   4. Call native Media3 code to apply emoji overlays
+  ///   5. Return processed video file
+  Future<File> processVideoForSharing(File input, bool privacyEnabled) async {
+    if (!privacyEnabled) {
+      return input;
+    }
+
+    // Android-only for now (Media3 is Android-specific)
+    if (!Platform.isAndroid) {
+      Logger.debug('Media3 only available on Android, returning original video');
+      return input;
+    }
+
+    final stopwatch = Stopwatch()..start();
+    Logger.debug('START processing ${input.path}');
+
+    try {
+      // Step 1: Extract video metadata (duration, dimensions)
+      Logger.debug('Step 1: Extracting video metadata...');
+      final videoInfo = await _getVideoInfo(input);
+      if (videoInfo == null) {
+        Logger.debug('Failed to get video info, returning original');
+        return input;
+      }
+      Logger.debug('Video: ${videoInfo['width']}x${videoInfo['height']}, ${videoInfo['duration']}ms');
+
+      // Step 2: Extract frames and detect faces
+      Logger.debug('Step 2: Extracting frames and detecting faces...');
+      final faceDetections = await _extractFramesAndDetectFaces(
+        input,
+        videoInfo['duration'] as int,
+        videoInfo['width'] as int,
+        videoInfo['height'] as int,
+      );
+      Logger.debug('Detected ${faceDetections.length} face instances across frames');
+
+      if (faceDetections.isEmpty) {
+        Logger.debug('No faces detected, returning original video');
+        return input;
+      }
+
+      // Step 3: Call native Media3 processor
+      Logger.debug('Step 3: Calling Media3 processor...');
+      final outputPath = await _channel.invokeMethod<String>('processVideo', {
+        'inputPath': input.path,
+        'faces': faceDetections,
+      });
+
+      if (outputPath == null) {
+        Logger.debug('Media3 processing failed, returning original');
+        return input;
+      }
+
+      Logger.debug('TOTAL SUCCESS in ${stopwatch.elapsedMilliseconds}ms');
+      return File(outputPath);
+    } catch (e, stack) {
+      Logger.error('Critical error in processVideoForSharing', e, stack);
+      return input;
+    }
+  }
+
+  /// Extract video metadata (duration, width, height).
+  Future<Map<String, int>?> _getVideoInfo(File videoFile) async {
+    try {
+      // Use video_thumbnail to get a frame and extract dimensions
+      final thumbnailPath = await VideoThumbnail.thumbnailFile(
+        video: videoFile.path,
+        thumbnailPath: (await getTemporaryDirectory()).path,
+        imageFormat: ImageFormat.PNG,
+        maxHeight: 720,
+        quality: 25,
+        timeMs: 0,
+      );
+
+      if (thumbnailPath == null) return null;
+
+      final thumbnailBytes = await File(thumbnailPath).readAsBytes();
+      final thumbnailImage = img.decodeImage(thumbnailBytes);
+
+      if (thumbnailImage == null) return null;
+
+      // Get video duration using a simple approach
+      // Note: For more accurate duration, consider using video_player or native code
+      final duration = await _estimateVideoDuration(videoFile);
+
+      await File(thumbnailPath).delete();
+
+      return {
+        'width': thumbnailImage.width,
+        'height': thumbnailImage.height,
+        'duration': duration,
+      };
+    } catch (e) {
+      Logger.debug('Error getting video info: $e');
+      return null;
+    }
+  }
+
+  /// Get actual video duration using VideoPlayerController.
+  Future<int> _estimateVideoDuration(File videoFile) async {
+    try {
+      final controller = VideoPlayerController.file(videoFile);
+      await controller.initialize();
+      final durationMs = controller.value.duration.inMilliseconds;
+      await controller.dispose();
+      Logger.debug('Actual video duration: ${durationMs}ms');
+      return durationMs > 0 ? durationMs : 2000; // fallback 2s
+    } catch (e) {
+      Logger.debug('Error getting video duration: $e, defaulting to 2000ms');
+      return 2000;
+    }
+  }
+
+  /// Extract frames from video and detect faces in each frame.
+  ///
+  /// Detects one face per frame (the most prominent face).
+  /// Returns a list of face detections with normalized coordinates and timestamps.
+  Future<List<Map<String, dynamic>>> _extractFramesAndDetectFaces(
+    File videoFile,
+    int durationMs,
+    int videoWidth,
+    int videoHeight,
+  ) async {
+    final faceDetections = <Map<String, dynamic>>[];
+
+    // Sample frames every 500ms
+    const samplingIntervalMs = 500;
+    final numSamples = (durationMs / samplingIntervalMs).ceil();
+
+    Logger.debug('Sampling $numSamples frames at ${samplingIntervalMs}ms intervals');
+
+    for (int i = 0; i < numSamples; i++) {
+      final timeMs = i * samplingIntervalMs;
+
+      try {
+        // Extract frame at this timestamp
+        final framePath = await VideoThumbnail.thumbnailFile(
+          video: videoFile.path,
+          thumbnailPath: (await getTemporaryDirectory()).path,
+          imageFormat: ImageFormat.PNG,
+          maxHeight: 720,
+          quality: 50,
+          timeMs: timeMs,
+        );
+
+        if (framePath == null) {
+          Logger.debug('  Frame $i @ ${timeMs}ms: thumbnail extraction failed');
+          continue;
+        }
+
+        // Decode frame
+        final frameBytes = await File(framePath).readAsBytes();
+        var frameImage = img.decodeImage(frameBytes);
+        await File(framePath).delete();
+
+        if (frameImage == null) {
+          Logger.debug('  Frame $i @ ${timeMs}ms: image decode failed');
+          continue;
+        }
+
+        // Bake orientation
+        frameImage = img.bakeOrientation(frameImage);
+
+        // BlazeFace portrait workaround: rotate large portrait frames
+        // (same as PrivacyService does for images)
+        final needsRotation = (frameImage.width > 1000 || frameImage.height > 1000) &&
+            frameImage.height > frameImage.width;
+        final detectionImage = needsRotation
+            ? img.copyRotate(frameImage, angle: 90)
+            : frameImage;
+
+        Logger.debug('  Frame $i @ ${timeMs}ms: ${frameImage.width}x${frameImage.height}'
+            '${needsRotation ? " (rotated for detection)" : ""}');
+
+        // Detect ALL faces in this frame
+        final detections = await _faceDetectorService.detectFacesFromImage(
+          detectionImage,
+          generateDebugImage: false,
+        );
+
+        if (detections.isNotEmpty) {
+          for (final detection in detections) {
+            final detBox = detection.box;
+            
+            // If we rotated for detection, map bounding box back to original space
+            final box = needsRotation
+                ? FaceRect(
+                    x: detBox.y,
+                    y: frameImage.height - detBox.x - detBox.width,
+                    width: detBox.height,
+                    height: detBox.width,
+                  )
+                : detBox;
+
+            // Normalize coordinates to 0-1 range using ORIGINAL frame dimensions
+            final frameWidth = frameImage.width;
+            final frameHeight = frameImage.height;
+
+            final normX = box.x / frameWidth;
+            final normY = box.y / frameHeight;
+            final normW = box.width / frameWidth;
+            final normH = box.height / frameHeight;
+
+            Logger.debug('    FACE FOUND: pixel=(${box.x},${box.y},${box.width}x${box.height}) '
+                'norm=($normX,$normY,${normW}x$normH) score=${detection.score.toStringAsFixed(2)}');
+
+            faceDetections.add({
+              'x': normX,
+              'y': normY,
+              'width': normW,
+              'height': normH,
+              'startTimeMs': timeMs,
+              'endTimeMs': ((i + 1) * samplingIntervalMs).clamp(0, durationMs),
+            });
+          }
+        } else {
+          Logger.debug('    No face detected in this frame');
+        }
+      } catch (e) {
+        Logger.debug('Error processing frame at ${timeMs}ms: $e');
+      }
+    }
+
+    return faceDetections;
+  }
+
+  /// Clean up temporary files created during privacy processing.
+  Future<void> cleanUpTempFiles() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final files = tempDir.listSync();
+      for (final file in files) {
+        if (file is File &&
+            (path.basename(file.path).startsWith('privacy_video_') ||
+                path.basename(file.path).contains('thumbnail'))) {
+          try {
+            await file.delete();
+          } catch (e) {
+            // Ignore deletion errors
+          }
+        }
+      }
+    } catch (e) {
+      Logger.debug('Cleanup error: $e');
+    }
+  }
+}

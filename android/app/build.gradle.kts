@@ -21,8 +21,8 @@ android {
 
     defaultConfig {
         applicationId = "com.eduportfolio.eduportfolio"
-        // Android 8.0 (Oreo) minimum for compatibility with ML and camera features
-        minSdk = 26
+        // Android 10+ minimum for OPUS audio recording support (record package)
+        minSdk = 29
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -44,4 +44,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Media3 Transformer for video processing with emoji overlays
+    implementation("androidx.media3:media3-transformer:1.9.0")
+    implementation("androidx.media3:media3-effect:1.9.0")
+    implementation("androidx.media3:media3-common:1.9.0")
 }

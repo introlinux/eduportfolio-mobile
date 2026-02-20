@@ -16,6 +16,8 @@ import 'package:eduportfolio/features/students/presentation/screens/student_deta
 import 'package:eduportfolio/features/students/presentation/screens/student_form_screen.dart';
 import 'package:eduportfolio/features/students/presentation/screens/students_screen.dart';
 import 'package:eduportfolio/features/subjects/presentation/screens/subjects_management_screen.dart';
+import 'package:eduportfolio/features/sync/presentation/screens/sync_screen.dart';
+import 'package:eduportfolio/features/sync/presentation/screens/sync_settings_screen.dart';
 import 'package:flutter/material.dart';
 
 /// App routes configuration
@@ -38,6 +40,8 @@ class AppRoutes {
   static const String review = '/review';
   static const String config = '/config';
   static const String subjectsManagement = '/subjects-management';
+  static const String syncSettings = '/sync-settings';
+  static const String sync = '/sync';
 
   /// Generate routes for the app
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -203,6 +207,18 @@ class AppRoutes {
       case subjectsManagement:
         return MaterialPageRoute<void>(
           builder: (_) => const SubjectsManagementScreen(),
+          settings: settings,
+        );
+
+      case syncSettings:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SyncSettingsScreen(),
+          settings: settings,
+        );
+
+      case sync:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SyncScreen(),
           settings: settings,
         );
 

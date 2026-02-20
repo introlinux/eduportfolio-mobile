@@ -59,8 +59,10 @@ class DatabaseHelper {
         CREATE TABLE students (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           course_id INTEGER NOT NULL,
-          name TEXT NOT NULL,
+          name TEXT NOT NULL UNIQUE,
           face_embeddings BLOB,
+          enrollment_date TEXT DEFAULT CURRENT_TIMESTAMP,
+          is_active INTEGER DEFAULT 1,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
@@ -95,6 +97,8 @@ class DatabaseHelper {
           is_reviewed INTEGER DEFAULT 1,
           notes TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          confidence REAL,
+          method TEXT,
           FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL,
           FOREIGN KEY (course_id) REFERENCES courses(id),
           FOREIGN KEY (subject_id) REFERENCES subjects(id)
@@ -129,7 +133,22 @@ class DatabaseHelper {
         });
       }
 
-      Logger.info('Database tables created successfully');
+      // Insert default course (same logic as desktop)
+      final now = DateTime.now();
+      final currentYear = now.year;
+      final nextYear = currentYear + 1;
+      // Short format according to Spanish calendar
+      final courseName = now.month >= 9 // September to December
+          ? 'Curso $currentYear-${nextYear.toString().substring(2)}'
+          : 'Curso ${currentYear - 1}-${currentYear.toString().substring(2)}';
+
+      await txn.insert('courses', {
+        'name': courseName,
+        'start_date': now.toIso8601String(),
+        'is_active': 1,
+      });
+
+      Logger.info('Database tables created successfully with default course: $courseName');
     });
   }
 
@@ -162,6 +181,82 @@ class DatabaseHelper {
         );
       });
       Logger.info('Migration to v2 completed');
+    }
+
+    if (oldVersion < 3) {
+      Logger.info('Migrating to v3: Adding UNIQUE constraint to student names');
+      await db.transaction((txn) async {
+        // Create new students table with UNIQUE constraint on name
+        await txn.execute('''
+          CREATE TABLE students_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_id INTEGER NOT NULL,
+            name TEXT NOT NULL UNIQUE,
+            face_embeddings BLOB,
+            enrollment_date TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+          )
+        ''');
+
+        // Copy data, keeping only first occurrence of each name per course
+        // (in case there are duplicates)
+        await txn.execute('''
+          INSERT INTO students_new (id, course_id, name, face_embeddings, created_at, updated_at, enrollment_date, is_active)
+          SELECT
+            id,
+            course_id,
+            name,
+            face_embeddings,
+            created_at,
+            updated_at,
+            COALESCE(created_at, CURRENT_TIMESTAMP) as enrollment_date,
+            1 as is_active
+          FROM students
+          WHERE id IN (
+            SELECT MIN(id)
+            FROM students
+            GROUP BY name, course_id
+          )
+        ''');
+
+        // Drop old table
+        await txn.execute('DROP TABLE students');
+
+        // Rename new table
+        await txn.execute('ALTER TABLE students_new RENAME TO students');
+
+        // Recreate index
+        await txn.execute(
+          'CREATE INDEX idx_students_course_id ON students(course_id)',
+        );
+      });
+      Logger.info('Migration to v3 completed');
+    }
+
+    if (oldVersion < 4) {
+      Logger.info('Migrating to v4: Adding desktop compatibility fields');
+      await db.transaction((txn) async {
+        // Add enrollment_date and is_active to students
+        await txn.execute(
+          'ALTER TABLE students ADD COLUMN enrollment_date TEXT DEFAULT CURRENT_TIMESTAMP',
+        );
+        await txn.execute(
+          'ALTER TABLE students ADD COLUMN is_active INTEGER DEFAULT 1',
+        );
+
+        // Backfill enrollment_date with created_at
+        await txn.execute(
+          'UPDATE students SET enrollment_date = created_at WHERE enrollment_date IS NULL',
+        );
+
+        // Add confidence and method to evidences
+        await txn.execute('ALTER TABLE evidences ADD COLUMN confidence REAL');
+        await txn.execute('ALTER TABLE evidences ADD COLUMN method TEXT');
+      });
+      Logger.info('Migration to v4 completed');
     }
   }
 

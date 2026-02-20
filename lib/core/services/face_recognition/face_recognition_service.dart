@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_detector_service.dart';
 import 'package:eduportfolio/core/services/face_recognition/face_embedding_service.dart';
-import 'package:flutter/foundation.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:image/image.dart' as img;
 
 /// Main face recognition service
@@ -24,21 +24,12 @@ class FaceRecognitionService {
 
   /// Initialize the service
   Future<void> initialize() async {
-    print('');
-    print('╔════════════════════════════════════════╗');
-    print('║  FACE RECOGNITION SERVICE STARTUP     ║');
-    print('╚════════════════════════════════════════╝');
-    print('Initializing face recognition models...');
-    print('');
+    Logger.info('Face Recognition Service starting up...');
 
     await _faceDetector.initialize();
     await _embeddingService.initialize();
 
-    print('');
-    print('╔════════════════════════════════════════╗');
-    print('║  FACE RECOGNITION SERVICE READY        ║');
-    print('╚════════════════════════════════════════╝');
-    print('');
+    Logger.info('Face Recognition Service ready');
   }
 
   /// Recognize student from image
@@ -100,7 +91,7 @@ class FaceRecognitionService {
 
       return RecognitionResult.noMatch(confidence: bestSimilarity);
     } catch (e) {
-      print('Error recognizing student: $e');
+      Logger.error('Error recognizing student', e);
       return RecognitionResult.error(e.toString());
     }
   }
@@ -119,48 +110,34 @@ class FaceRecognitionService {
     List<Student> studentsWithFaceData,
   ) async {
     try {
-      debugPrint('');
-      debugPrint('🔍 RECOGNITION FROM IMAGE STARTED');
-      debugPrint('  - Image size: ${image.width}x${image.height}');
-      debugPrint('  - Students to compare: ${studentsWithFaceData.length}');
+      Logger.debug('Recognition from image: ${image.width}x${image.height}, students: ${studentsWithFaceData.length}');
 
       // Step 1: Detect face from image (no file I/O)
-      debugPrint('  - Step 1: Detecting face...');
       final detection = await _faceDetector.detectFaceFromImage(image);
       if (detection == null) {
-        debugPrint('  ❌ No face detected');
+        Logger.debug('No face detected in image');
         return RecognitionResult.noFaceDetected();
       }
-      debugPrint('  ✅ Face detected: ${detection.box}');
 
       // Step 2: Crop face using detection (no orientation workaround)
-      debugPrint('  - Step 2: Cropping face...');
       final face = await _faceDetector.cropFaceWithDetection(image, detection);
       if (face == null) {
-        debugPrint('  ❌ Face crop failed');
+        Logger.debug('Face crop failed');
         return RecognitionResult.noFaceDetected();
       }
-      debugPrint('  ✅ Face cropped: ${face.width}x${face.height}');
 
       // Step 3: Extract embedding
-      debugPrint('  - Step 3: Extracting embedding...');
       final embedding = await _embeddingService.extractEmbedding(face);
       if (embedding == null) {
-        debugPrint('  ❌ Embedding extraction failed');
+        Logger.debug('Embedding extraction failed');
         return RecognitionResult.extractionFailed();
       }
-      debugPrint('  ✅ Embedding extracted: ${embedding.length} dimensions');
-      debugPrint('  - First 5 values: ${embedding.take(5).toList()}');
 
       // Step 4: Normalize embedding
-      debugPrint('  - Step 4: Normalizing embedding...');
       final normalizedEmbedding =
           _embeddingService.normalizeEmbedding(embedding);
-      debugPrint('  ✅ Embedding normalized');
-      debugPrint('  - First 5 normalized: ${normalizedEmbedding.take(5).toList()}');
 
       // Step 5: Compare with all students
-      debugPrint('  - Step 5: Comparing with ${studentsWithFaceData.length} students...');
       Student? bestMatch;
       double bestSimilarity = 0.0;
 
@@ -177,23 +154,16 @@ class FaceRecognitionService {
           studentEmbedding,
         );
 
-        debugPrint('    - ${student.name}: similarity = ${similarity.toStringAsFixed(4)}');
-
         if (similarity > bestSimilarity) {
           bestSimilarity = similarity;
           bestMatch = student;
         }
       }
 
-      debugPrint('');
-      debugPrint('  📊 BEST MATCH: ${bestMatch?.name ?? "none"}');
-      debugPrint('  📊 SIMILARITY: ${bestSimilarity.toStringAsFixed(4)}');
-      debugPrint('  📊 THRESHOLD: ${similarityThreshold.toStringAsFixed(4)}');
+      Logger.debug('Best match: ${bestMatch?.name ?? "none"} (similarity: ${bestSimilarity.toStringAsFixed(4)}, threshold: ${similarityThreshold.toStringAsFixed(4)})');
 
       // Step 6: Check if best match exceeds threshold
       if (bestMatch != null && bestSimilarity >= similarityThreshold) {
-        debugPrint('  ✅ RECOGNIZED: ${bestMatch.name}');
-        debugPrint('');
         return RecognitionResult.recognized(
           student: bestMatch,
           confidence: bestSimilarity,
@@ -201,15 +171,12 @@ class FaceRecognitionService {
         );
       }
 
-      debugPrint('  ❌ NO MATCH (similarity too low)');
-      debugPrint('');
       return RecognitionResult.noMatch(
         confidence: bestSimilarity,
         debugCroppedFace: face,
       );
-    } catch (e) {
-      debugPrint('  ❌ ERROR: $e');
-      debugPrint('');
+    } catch (e, stackTrace) {
+      Logger.error('Error in recognizeStudentFromImage', e, stackTrace);
       return RecognitionResult.error(e.toString());
     }
   }
@@ -297,20 +264,17 @@ class FaceRecognitionService {
     }
 
     // Average embeddings
-    debugPrint('📊 Averaging ${embeddings.length} embeddings...');
+    Logger.debug('Averaging ${embeddings.length} embeddings...');
     final averagedEmbedding = _embeddingService.averageEmbeddings(embeddings);
-    debugPrint('  - First 5 averaged values: ${averagedEmbedding.take(5).toList()}');
 
     // Normalize
-    debugPrint('📊 Normalizing averaged embedding...');
     final normalizedEmbedding =
         _embeddingService.normalizeEmbedding(averagedEmbedding);
-    debugPrint('  - First 5 normalized values: ${normalizedEmbedding.take(5).toList()}');
 
     // Convert to bytes for storage
     final embeddingBytes =
         _embeddingService.embeddingToBytes(normalizedEmbedding);
-    debugPrint('📊 Embedding converted to ${embeddingBytes.length} bytes for storage');
+    Logger.debug('Embedding converted to ${embeddingBytes.length} bytes for storage');
 
     return TrainingResult.success(
       embeddingBytes: embeddingBytes,
@@ -330,10 +294,7 @@ class FaceRecognitionService {
     List<img.Image> images,
     List<FaceDetectionResult> detections,
   ) async {
-    debugPrint('');
-    debugPrint('═══════════════════════════════════════════════════');
-    debugPrint('🔥 OPTIMIZED TRAINING: Using images in memory (NO disk I/O)');
-    debugPrint('═══════════════════════════════════════════════════');
+    Logger.info('Optimized training: processing images in memory (no disk I/O)');
     final startTime = DateTime.now();
 
     if (images.length != 5) {
@@ -349,9 +310,7 @@ class FaceRecognitionService {
 
     // Process each photo with its pre-computed detection
     for (int i = 0; i < images.length; i++) {
-      debugPrint('');
-      debugPrint('📷 Processing photo ${i + 1}/5...');
-      final photoStartTime = DateTime.now();
+      Logger.debug('Processing photo ${i + 1}/5...');
 
       final image = images[i];
       final detection = detections[i];
@@ -359,28 +318,21 @@ class FaceRecognitionService {
       // Crop face using pre-computed detection (NO detection, NO I/O!)
       final face = await _faceDetector.cropFaceWithDetection(image, detection);
       if (face == null) {
-        debugPrint('❌ Photo ${i + 1} failed to crop');
+        Logger.warning('Photo ${i + 1} failed to crop');
         failedPhotos.add(i + 1);
         continue;
       }
 
       // Extract embedding
-      debugPrint('  - Extracting embedding...');
-      final embeddingStartTime = DateTime.now();
       final embedding = await _embeddingService.extractEmbedding(face);
-      final embeddingDuration = DateTime.now().difference(embeddingStartTime);
-      debugPrint('  - Embedding extracted in ${embeddingDuration.inMilliseconds}ms');
 
       if (embedding == null) {
-        debugPrint('❌ Photo ${i + 1} failed to extract embedding');
+        Logger.warning('Photo ${i + 1} failed to extract embedding');
         failedPhotos.add(i + 1);
         continue;
       }
 
       embeddings.add(embedding);
-
-      final photoDuration = DateTime.now().difference(photoStartTime);
-      debugPrint('✅ Photo ${i + 1} completed in ${photoDuration.inMilliseconds}ms');
     }
 
     // Check if we have enough valid embeddings
@@ -390,8 +342,7 @@ class FaceRecognitionService {
       );
     }
 
-    debugPrint('');
-    debugPrint('📊 Averaging ${embeddings.length} embeddings...');
+    Logger.debug('Averaging ${embeddings.length} embeddings...');
     // Average embeddings
     final averagedEmbedding = _embeddingService.averageEmbeddings(embeddings);
 
@@ -404,12 +355,7 @@ class FaceRecognitionService {
         _embeddingService.embeddingToBytes(normalizedEmbedding);
 
     final totalDuration = DateTime.now().difference(startTime);
-    debugPrint('');
-    debugPrint('✅ TRAINING COMPLETED in ${totalDuration.inSeconds}.${totalDuration.inMilliseconds % 1000}s');
-    debugPrint('   - Successful: ${embeddings.length}/5 photos');
-    debugPrint('   - Failed: ${failedPhotos.isEmpty ? "none" : failedPhotos.join(", ")}');
-    debugPrint('═══════════════════════════════════════════════════');
-    debugPrint('');
+    Logger.info('Training completed in ${totalDuration.inMilliseconds}ms — successful: ${embeddings.length}/5, failed: ${failedPhotos.isEmpty ? "none" : failedPhotos.join(", ")}');
 
     return TrainingResult.success(
       embeddingBytes: embeddingBytes,

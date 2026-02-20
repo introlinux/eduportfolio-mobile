@@ -1,10 +1,13 @@
 import 'dart:io';
 
+import 'package:chewie/chewie.dart';
+import 'package:eduportfolio/core/utils/logger.dart';
 import 'package:eduportfolio/core/domain/entities/evidence.dart';
 import 'package:eduportfolio/core/domain/entities/student.dart';
 import 'package:eduportfolio/core/domain/entities/subject.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
 
 /// Full-screen dialog to preview evidence and assign to student
 ///
@@ -36,10 +39,53 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
   int? _selectedStudentId;
   bool _isProcessing = false;
 
+  // Video player controllers
+  VideoPlayerController? _videoPlayerController;
+  ChewieController? _chewieController;
+
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _initVideoIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _disposeVideoControllers();
+    super.dispose();
+  }
+
+  void _disposeVideoControllers() {
+    _chewieController?.dispose();
+    _videoPlayerController?.dispose();
+    _chewieController = null;
+    _videoPlayerController = null;
+  }
+
+  Future<void> _initVideoIfNeeded() async {
+    if (_currentEvidence.type != EvidenceType.video) return;
+
+    _disposeVideoControllers();
+
+    try {
+      _videoPlayerController = VideoPlayerController.file(
+        File(_currentEvidence.filePath),
+      );
+      await _videoPlayerController!.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController!,
+        autoPlay: false,
+        looping: false,
+        showControls: true,
+        allowFullScreen: false,
+      );
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      Logger.error('Error initializing video preview', e);
+    }
   }
 
   Evidence get _currentEvidence => widget.allEvidences[_currentIndex];
@@ -63,6 +109,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
         _currentIndex--;
         _selectedStudentId = null;
       });
+      _initVideoIfNeeded();
     }
   }
 
@@ -72,6 +119,7 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
         _currentIndex++;
         _selectedStudentId = null;
       });
+      _initVideoIfNeeded();
     }
   }
 
@@ -335,10 +383,9 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
 
   Widget _buildPreview() {
     if (_currentEvidence.type == EvidenceType.image) {
-      // Image with proper fit for zoom expansion
       return Image.file(
         File(_currentEvidence.filePath),
-        fit: BoxFit.contain, // Fits image initially, allows expansion on zoom
+        fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           return const Center(
             child: Icon(
@@ -350,17 +397,21 @@ class _EvidencePreviewDialogState extends State<EvidencePreviewDialog> {
         },
       );
     } else if (_currentEvidence.type == EvidenceType.video) {
-      // NOTE: Video player functionality planned for Phase 2
+      if (_chewieController != null) {
+        return Chewie(controller: _chewieController!);
+      }
+      // Loading state
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.videocam, size: 64, color: Colors.white),
+            Icon(Icons.videocam, size: 64, color: Colors.white54),
             SizedBox(height: 16),
+            CircularProgressIndicator(color: Colors.white),
+            SizedBox(height: 8),
             Text(
-              'Vista previa de video\npróximamente',
-              style: TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
+              'Cargando vídeo...',
+              style: TextStyle(color: Colors.white70),
             ),
           ],
         ),
