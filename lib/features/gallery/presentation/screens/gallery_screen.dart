@@ -278,7 +278,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       // Subject filter dropdown
       subjectsAsync.when(
         data: (subjects) {
-          return PopupMenuButton<int?>(
+          return PopupMenuButton<int>(
             icon: Icon(
               selectedSubjectId == null
                   ? Icons.filter_list
@@ -287,13 +287,13 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             tooltip: 'Filtrar por asignatura',
             onSelected: (subjectId) {
               ref.read(selectedSubjectFilterProvider.notifier).state =
-                  subjectId;
+                  subjectId == -1 ? null : subjectId;
               // Force refresh of filtered evidences
               ref.invalidate(filteredEvidencesProvider);
             },
             itemBuilder: (context) => [
-              PopupMenuItem<int?>(
-                value: null,
+              PopupMenuItem<int>(
+                value: -1,
                 child: Row(
                   children: [
                     Icon(
@@ -309,7 +309,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               ),
               const PopupMenuDivider(),
               ...subjects.map(
-                (subject) => PopupMenuItem<int?>(
+                (subject) => PopupMenuItem<int>(
                   value: subject.id,
                   child: Row(
                     children: [
@@ -336,7 +336,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
         data: (students) {
           if (students.isEmpty) return const SizedBox.shrink();
 
-          return PopupMenuButton<int?>(
+          return PopupMenuButton<int>(
             icon: Icon(
               selectedStudentId == null
                   ? Icons.person_outline
@@ -345,13 +345,13 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             tooltip: 'Filtrar por estudiante',
             onSelected: (studentId) {
               ref.read(selectedStudentFilterProvider.notifier).state =
-                  studentId;
+                  studentId == -1 ? null : studentId;
               // Force refresh of filtered evidences
               ref.invalidate(filteredEvidencesProvider);
             },
             itemBuilder: (context) => [
-              PopupMenuItem<int?>(
-                value: null,
+              PopupMenuItem<int>(
+                value: -1,
                 child: Row(
                   children: [
                     Icon(
@@ -367,7 +367,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               ),
               const PopupMenuDivider(),
               ...students.map(
-                (student) => PopupMenuItem<int?>(
+                (student) => PopupMenuItem<int>(
                   value: student.id,
                   child: Row(
                     children: [
