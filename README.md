@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://flutter.dev)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-54C5F8?logo=flutter)](https://flutter.dev)
-[![Download APK](https://img.shields.io/badge/Download_APK-v1.0.0-success?style=flat&logo=android)](https://drive.google.com/file/d/14D3hyGKlAstHEnJvzRgMTqsTAKDBV8HF/view?usp=sharing)
+[![Download APK](https://img.shields.io/badge/Download_APK-v0.3.0-success?style=flat&logo=android)](https://drive.google.com/file/d/15rzgtLHFUROALjr2jFvdglM7p5HJ18J0/view?usp=sharing)
 
 ---
 
